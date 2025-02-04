@@ -2,6 +2,16 @@
 ## With TPU(s) using JAX `nnx`
 
 
+## R1 Notes
+
+* https://x.com/Guodaya/status/1886635010251518330 
+  + DeepSeek Researcher
+  + The 660B R1-Zero and R1 began running after the release of V3, 
+    with training taking approximately 2-3 weeks. 
+    The R1 model we referred to prior to this time (e.g., in the V3 tech report) 
+    was the R1-Lite or the R1-Lite-Zero.
+
+
 ## Resources
 
 ### Jax (generic)
