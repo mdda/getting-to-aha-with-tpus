@@ -158,7 +158,12 @@
 * [Fine-tuning 20B LLMs with RLHF on a 24GB consumer GPU](https://huggingface.co/blog/trl-peft)
   + Includes PEFT and `trl` (9-March-2023)
 
+* [GRPO also works very well for Llama 2 7B, with an impressive +15 accuracy point increase in GSM8K](https://x.com/rdolmedo_/status/1886505669622149139)
+  + "There's nothing magical about recent model families. If the model can perform some task with sufficient accuracy, then RL with verifiable rewards will likely boost performance"
+  + [Run it yourself: `RicardoDominguez/grpo_llama2-7b-chat_gsm8k.sh`](https://gist.github.com/RicardoDominguez/72603d278ed26f0dd55af6ffd414b797)
+    - Seems like unrolled code from TRL ... everything is there
 
+   
 
 ### GRPO libraries
 
