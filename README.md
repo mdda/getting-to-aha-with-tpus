@@ -1,6 +1,12 @@
 # Getting to Aha
 ## With TPU(s) using JAX `nnx`
 
+* Reasoning-from-Zero : JAX on TPU
+
+> Following the release of DeepSeek's R1 model, there was a nice follow-up from a group at Berkeley with a 'Countdown task reasoner' that can be trained from scratch for "$30 of H100s" (https://github.com/Jiayi-Pan/TinyZero).  
+> This project is to replicate that same task, but using JAX/TPU infrastructure (hopefully with Gemma as the base model).  
+> This will make it far, far more likely that TPUs could become an experimentation platform for the curious : The current barriers to entry are very high.
+
 
 ## R1 Notes
 
