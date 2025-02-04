@@ -57,7 +57,23 @@
 ### Agentic RAG
 
 * [Eliciting Critical Reasoning in Retrieval-Augmented Language Models via Contrastive Explanations](https://arxiv.org/abs/2410.22874)
+* [Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection](https://arxiv.org/abs/2310.11511)
 
+
+#### Datasets
+
+* [BERGEN: A Benchmarking Library for Retrieval-Augmented Generation](https://arxiv.org/abs/2407.01102)
+  + [No results yet?](https://paperswithcode.com/paper/bergen-a-benchmarking-library-for-retrieval)
+* [Benchmarking Large Language Models in Retrieval-Augmented Generation](https://arxiv.org/abs/2309.01431)
+* [LegalBench-RAG: A Benchmark for Retrieval-Augmented Generation in the Legal Domain](https://arxiv.org/abs/2408.10343)
+  + [LegalBench-RAG](https://github.com/ZeroEntropy-AI/legalbenchrag)
+* [Fact, Fetch, and Reason: A Unified Evaluation of Retrieval-Augmented Generation](https://arxiv.org/abs/2409.12941)
+  + [FRAMES: Factuality, Retrieval, And reasoning MEasurement Set](https://huggingface.co/datasets/google/frames-benchmark)
+* [CRAG: Comprehensive RAG Benchmark](https://github.com/facebookresearch/CRAG)
+  + [KDD Task - with starter kit](https://gitlab.aicrowd.com/aicrowd/challenges/meta-comprehensive-rag-benchmark-kdd-cup-2024)
+* [Natural Questions: A Benchmark for Question Answering Research](https://aclanthology.org/Q19-1026/)
+  + [Google : NaturalQuestions](https://ai.google.com/research/NaturalQuestions/dataset)
+  + [Natural Questions SoTA](https://paperswithcode.com/sota/question-answering-on-natural-questions)
 
 
 ### Task Vectors
