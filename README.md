@@ -28,6 +28,34 @@
 * [Flow Matching in 50 lines of JAX](https://x.com/cgarciae88/status/1867340873136038293)
   + Cristian Garcia at DeepMind OS : @cgarciae88
 
+* Google Docs: 
+  + [Fine-tuning `gemma-2b-it` using JAX and Flax](https://ai.google.dev/gemma/docs/jax_finetune)
+    - Colab-Pro A100 GPU
+      + Could also use Kaggle's (free) TPU v3-8  
+      + Colab (free) TPU v2 is insufficient
+    - The gemma library was written with:
+      + JAX, Flax, 
+      + Orbax (a JAX-based library for training utilities like checkpointing), and 
+      + SentencePiece (a tokenizer/detokenizer library).
+    - More [documentation about packages](https://ai.google.dev/gemma/docs/jax_finetune#learn_more)
+    - Good example ([Gemma v1](https://github.com/google-deepmind/gemma), though), since : 
+      + `loss_fn` gets redefined
+      + seems to inherit from JAX gemma (so has a sampler.sample() and a train() available)
+        * `from gemma import transformer as transformer_lib`
+      + has training loop too 
+
+
+### TPU training (VM-style TPUs)
+
+* Google Docs: 
+  + [Training with TPU accelerators](https://cloud.google.com/vertex-ai/docs/training/training-with-tpu-vm)
+  + [Cloud TPU v5p training](https://cloud.google.com/tpu/docs/v5p-training)
+  + [TPU pricing](https://cloud.google.com/tpu/pricing?hl=en)
+* graphcast : [Provisioning a Cloud VM TPU](https://github.com/google-deepmind/graphcast/blob/main/docs/cloud_vm_setup.md)
+  + Describes (in detail) how to run `gencast_demo_cloud_vm.ipynb` through Colaboratory using Google Cloud compute
+  + == Weather models
+
+
 
 ### Post-R1 GRPO demos
 
@@ -50,6 +78,25 @@
 * The Thought Process Behind Kimi k1.5 
   + [Kimi k1.5: Scaling Reinforcement Learning with LLMs](https://arxiv.org/abs/2501.12599)
   + [Informative Author Thread](https://x.com/Kimi_Moonshot/status/1882413059513471044)
+
+
+### GRPO expositions
+
+* [GRPO with Verifiable (Binary) Rewards Is an Adaptive Weighted Contrastive Loss](https://ymroueh.me/post/post_1/)
+  + IBM researcher : Breaks down whitening into the factors
+* [Nathan Lambert Book on Blog](https://rlhfbook.com/c/11-policy-gradients.html#group-relative-policy-optimization-1)
+
+* [GRPO from DeepSeek-R1 is now available in Hugging Face `trl` library](https://x.com/Hesamation/status/1882001485636178414)
+
+* [Fine-tuning 20B LLMs with RLHF on a 24GB consumer GPU](https://huggingface.co/blog/trl-peft)
+  + Includes PEFT and `trl` (9-March-2023)
+
+### GRPO libraries
+
+* [OpenRLHF](https://github.com/OpenRLHF/OpenRLHF)
+  + High-performance RLHF framework built on Ray, DeepSpeed and HF Transformers
+* [veRL](https://github.com/volcengine/verl)
+  + Volcano Engine Reinforcement Learning for LLM
 
 
 ## Potential next ideas
