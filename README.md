@@ -51,6 +51,33 @@
   + Leverages JAX's JIT compilation and tensor-sharding capabilities
 
 
+### Gemma Models
+
+* [Using pretrained Gemma for inference with Flax NNX](https://flax.readthedocs.io/en/latest/guides/gemma.html)
+  + Gemma1 : 2.6B + 7B
+  + Gemma2 : 2B + 9B + 27B  (2, 8, 13 Trillion tokens training, respectively)
+  + CodeGemma : 2B + 7B
+  + [Gemma formatting and system instructions](https://ai.google.dev/gemma/docs/formatting)
+
+* [Getting Started with RecurrentGemma and FLAX](https://www.kaggle.com/code/philculliton/getting-started-with-recurrentgemma-and-flax/notebook)
+  + RecurrentGemma : 2B
+  + Griffin... : [Fine-tuning the 2B Griffin model with Flax](https://www.kaggle.com/code/philculliton/fine-tuning-the-2b-griffin-model-with-flax)
+  + [Inference with RecurrentGemma using JAX and Flax](https://ai.google.dev/gemma/docs/recurrentgemma/recurrentgemma_jax_inference)
+  + [Fine-tuning RecurrentGemma using JAX and Flax](https://ai.google.dev/gemma/docs/recurrentgemma/recurrentgemma_jax_finetune)
+    - `model = recurrentgemma.Griffin(config)`
+  + `flax/examples/gemma/` code seems to include `nnx` and `nn`
+  + [LoRA - NNX LoRA classes](https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/nn/lora.html)
+  + [Example: Using pretrained Gemma for inference with Flax NNX](https://flax.readthedocs.io/en/latest/guides/gemma.html)
+    - Flax NNX `gemma.transformer.TransformerConfig.from_params` function
+
+* [`lorax`](https://github.com/davisyoshida/lorax/blob/master/examples/huggingface_gpt2.py)
+  - [May not be the best implementation](https://github.com/jax-ml/jax/discussions/16588)
+
+* [`import keras_nlp` LoRA tuning of Gemma](https://ai.google.dev/gemma/docs/lora_tuning)
+
+* [NNX parameter surgery](https://github.com/google/flax/blob/main/examples/nnx_toy_examples/09_parameter_surgery.py)
+
+
 ### Keras (Jax backend)
 
 * Kaggle [Gemma 2 TPU Fine-tuning](https://www.kaggle.com/code/matthewdwatson/gemma-2-tpu-fine-tuning)
