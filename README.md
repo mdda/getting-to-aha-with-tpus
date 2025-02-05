@@ -49,6 +49,9 @@
   + Can `model.push_to_hub("my-gemma-finetuned-model")` after training LoRA
     - `from jora.hf.__main__ import lorize_huggingface`
   + Leverages JAX's JIT compilation and tensor-sharding capabilities
+  + [JORA: JAX Tensor-Parallel LoRA Library for Retrieval Augmented Fine-Tuning](https://arxiv.org/abs/2403.11366)
+    - [GitHub repo](https://github.com/aniquetahir/JORA)
+    - "Update (4/8/2024): JORA now supports Google's Gemma models"
 
 
 ### Gemma Models
@@ -105,6 +108,27 @@
   + Gemma 2B model in JAX: TPU v2 cores run batched generation with a throughput of 475 tokens per second
     - The Transformers generate method provides functionality for auto-regressive generation with batching, sampling, beam-search, etc. 
     - To reap the benefits of JAX, we'll compile the generate method end-to-end, such that the operations are fused into XLA-optimised kernels and executed efficiently on our hardware accelerator.
+
+* [Fine-tuning Gemma with Torch XLA and Hugging Face TRL](https://github.com/google-gemini/gemma-cookbook/blob/main/Gemma/Finetune_with_Torch_XLA.ipynb)
+  - 2024-12-XX 
+  - Colab (free version) works with TPU v2-8
+  - Loads torch-cpu and torch_xla\[tpu\]
+  - Docs mention `trl`, but actual training uses `SFTTrainer` (not RL, but from `trl`)
+
+* [Gemma Inference on TPUs](https://github.com/google-gemini/gemma-cookbook/blob/main/Gemma/gemma_inference_on_tpu.ipynb)
+  - Colab (free version) works with TPU v2-8
+  - `from gemma import transformer as transformer_lib`
+  - Short and sweet!
+
+* [Unlocking Gemma's Power: Data-Parallel Inference on TPUs with JAX](https://github.com/google-gemini/gemma-cookbook/blob/main/Gemma/gemma_data_parallel_inference_in_jax_tpu.ipynb)
+  - Colab (free version) works with TPU v2-8
+  - Pure JAX.flax : [gemma model loaded as `flax`](https://huggingface.co/docs/transformers/model_doc/gemma#transformers.FlaxGemmaForCausalLM):
+    + ```
+      model, params = FlaxGemmaForCausalLM.from_pretrained(
+        model_id, revision="flax", _do_init=False, 
+        dtype=jnp.bfloat16, token=access_token)
+      ```
+
 
 
 ### Post-R1 GRPO demos
