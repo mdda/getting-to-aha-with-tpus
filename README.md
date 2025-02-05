@@ -18,7 +18,7 @@
     was the R1-Lite or the R1-Lite-Zero.
 
 
-## Resources
+## JAX Resources
 
 ### Jax (generic)
 
@@ -33,6 +33,7 @@
     - Colab-Pro A100 GPU
       + Could also use Kaggle's (free) TPU v3-8  
       + Colab (free) TPU v2 is insufficient
+        * Even though `optimizer = optax.sgd(training_cfg.learning_rate)`
     - The gemma library was written with:
       + JAX, Flax, 
       + Orbax (a JAX-based library for training utilities like checkpointing), and 
@@ -69,16 +70,16 @@
   + [Fine-tuning RecurrentGemma using JAX and Flax](https://ai.google.dev/gemma/docs/recurrentgemma/recurrentgemma_jax_finetune)
     - `model = recurrentgemma.Griffin(config)`
   + `flax/examples/gemma/` code seems to include `nnx` and `nn`
-  + [LoRA - NNX LoRA classes](https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/nn/lora.html)
   + [Example: Using pretrained Gemma for inference with Flax NNX](https://flax.readthedocs.io/en/latest/guides/gemma.html)
     - Flax NNX `gemma.transformer.TransformerConfig.from_params` function
 
 * [`lorax`](https://github.com/davisyoshida/lorax/blob/master/examples/huggingface_gpt2.py)
   - [May not be the best implementation](https://github.com/jax-ml/jax/discussions/16588)
 
-* [`import keras_nlp` LoRA tuning of Gemma](https://ai.google.dev/gemma/docs/lora_tuning)
-
-* [NNX parameter surgery](https://github.com/google/flax/blob/main/examples/nnx_toy_examples/09_parameter_surgery.py)
+* [LoRA - NNX LoRA classes](https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/nn/lora.html)
+* [NNX parameter surgery](https://flax.readthedocs.io/en/latest/why.html#model-surgery)
+  + [Model Surgery (less informative)](https://flax.readthedocs.io/en/latest/guides/surgery.html)
+  + [Toy Example Code](https://github.com/google/flax/blob/main/examples/nnx_toy_examples/09_parameter_surgery.py)
 
 
 ### Keras (Jax backend)
@@ -91,29 +92,25 @@
 * Kaggle [Distributed tuning with Gemma using Keras¶](https://www.kaggle.com/code/nilaychauhan/keras-gemma-distributed-finetuning-and-inference)
 * OLD : [Make a custom loss function in keras](https://stackoverflow.com/questions/45961428/make-a-custom-loss-function-in-keras)
 
+* [`import keras_nlp` LoRA tuning of Gemma](https://ai.google.dev/gemma/docs/lora_tuning)
 
-### TPU training (VM-style TPUs)
 
-* Google Docs: 
-  + [Training with TPU accelerators](https://cloud.google.com/vertex-ai/docs/training/training-with-tpu-vm)
-  + [Cloud TPU v5p training](https://cloud.google.com/tpu/docs/v5p-training)
-  + [TPU pricing](https://cloud.google.com/tpu/pricing?hl=en)
-* graphcast : [Provisioning a Cloud VM TPU](https://github.com/google-deepmind/graphcast/blob/main/docs/cloud_vm_setup.md)
-  + Describes (in detail) how to run `gencast_demo_cloud_vm.ipynb` through Colaboratory using Google Cloud compute
-  + == Weather models
+## TPU training
 
-* [JAX Gemma on Colab TPU](https://colab.research.google.com/github/sanchit-gandhi/notebooks/blob/main/jax_gemma.ipynb)
-  + Colab (free tier) TPU v2-8 (3 generations old)
-  + "Gemma itself was trained using JAX on TPU v5e cores"
-  + Gemma 2B model in JAX: TPU v2 cores run batched generation with a throughput of 475 tokens per second
-    - The Transformers generate method provides functionality for auto-regressive generation with batching, sampling, beam-search, etc. 
-    - To reap the benefits of JAX, we'll compile the generate method end-to-end, such that the operations are fused into XLA-optimised kernels and executed efficiently on our hardware accelerator.
+* TPU memory (per core)
+  + TPU v2 :  8 GB, TPU v3 : 16 GB
+  + TPU v4 : 32 GB
+  + TPUv5e : 16 GB, TPUv5p : 95 GB
+  + [Cloud TPU performance guide](https://cloud.google.com/tpu/docs/performance-guide)
+  + To minimize memory overhead and maximize computational efficiency, one of the following must be true:
+    - The total batch size should be a multiple of 64 (8 per TPU core), and feature dimension sizes should be a multiple of 128.
+    - The total batch size should be a multiple of 1024 (128 per TPU core), and feature dimension sizes should be a multiple of 8.
+  + The TPU *Node* architecture is being deprecated. 
+    - TPU v2 and v3 are the only TPU versions that still support the TPU Node architecture
+    - TPU v4 and newer only support the TPU VM architecture
 
-* [Fine-tuning Gemma with Torch XLA and Hugging Face TRL](https://github.com/google-gemini/gemma-cookbook/blob/main/Gemma/Finetune_with_Torch_XLA.ipynb)
-  - 2024-12-XX 
-  - Colab (free version) works with TPU v2-8
-  - Loads torch-cpu and torch_xla\[tpu\]
-  - Docs mention `trl`, but actual training uses `SFTTrainer` (not RL, but from `trl`)
+
+### TPU training (Node-style TPUs = old, including Colab)
 
 * [Gemma Inference on TPUs](https://github.com/google-gemini/gemma-cookbook/blob/main/Gemma/gemma_inference_on_tpu.ipynb)
   - Colab (free version) works with TPU v2-8
@@ -128,8 +125,33 @@
         model_id, revision="flax", _do_init=False, 
         dtype=jnp.bfloat16, token=access_token)
       ```
+* [Fine-tuning Gemma with Torch XLA and Hugging Face TRL](https://github.com/google-gemini/gemma-cookbook/blob/main/Gemma/Finetune_with_Torch_XLA.ipynb)
+  - 2024-12-XX 
+  - Colab (free version) works with TPU v2-8
+  - Loads `torch-cpu` and `torch_xla[tpu]`
+  - Actual training uses `SFTTrainer` (not RL, but from `trl`)
+
+* [JAX Gemma on Colab TPU](https://colab.research.google.com/github/sanchit-gandhi/notebooks/blob/main/jax_gemma.ipynb)
+  + Colab (free tier) TPU v2-8 (3 generations old)
+    - "Gemma itself was trained using JAX on TPU v5e cores"
+  + Gemma 2B model in JAX: TPU v2 cores run batched generation with a throughput of 475 tokens per second
+    - The Transformers generate method provides functionality for auto-regressive generation with batching, sampling, beam-search, etc. 
+    - To reap the benefits of JAX, we'll compile the generate method end-to-end, such that the operations are fused into XLA-optimised kernels and executed efficiently on our hardware accelerator.
 
 
+### TPU training (VM-style TPUs = modern)
+
+* Google Docs: 
+  + [Training with TPU accelerators](https://cloud.google.com/vertex-ai/docs/training/training-with-tpu-vm)
+  + [Cloud TPU v5p training](https://cloud.google.com/tpu/docs/v5p-training)
+  + [TPU pricing](https://cloud.google.com/tpu/pricing?hl=en)
+* graphcast : [Provisioning a Cloud VM TPU](https://github.com/google-deepmind/graphcast/blob/main/docs/cloud_vm_setup.md)
+  + Describes (in detail) how to run `gencast_demo_cloud_vm.ipynb` through Colaboratory using Google Cloud compute
+  + == Weather models
+
+
+
+## RL-related Resources
 
 ### Post-R1 GRPO demos
 
