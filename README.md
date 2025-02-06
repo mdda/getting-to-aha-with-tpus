@@ -2,10 +2,9 @@
 ## With TPU(s) using JAX `nnx`
 
 * Reasoning-from-Zero : JAX on TPU
-
-> Following the release of DeepSeek's R1 model, there was a nice follow-up from a group at Berkeley with a 'Countdown task reasoner' that can be trained from scratch for "$30 of H100s" (https://github.com/Jiayi-Pan/TinyZero).  
-> This project is to replicate that same task, but using JAX/TPU infrastructure (hopefully with Gemma as the base model).  
-> This will make it far, far more likely that TPUs could become an experimentation platform for the curious : The current barriers to entry are very high.
+  + Following the release of DeepSeek's R1 model, there was a nice follow-up from a group at Berkeley with a 'Countdown task reasoner' that can be trained from scratch for "$30 of H100s" (https://github.com/Jiayi-Pan/TinyZero).  
+  + This project is to replicate that same task, but using JAX/TPU infrastructure (hopefully with Gemma as the base model).  
+  + This will make it far, far more likely that TPUs could become an experimentation platform for the curious : The current barriers to entry are very high.
 
 
 ## R1 Notes
@@ -21,9 +20,6 @@
 ## JAX Resources
 
 ### Jax (generic)
-
-* https://jax-ml.github.io/scaling-book/
-  + DeepMind : Highly recommended
 
 * [Flow Matching in 50 lines of JAX](https://x.com/cgarciae88/status/1867340873136038293)
   + Cristian Garcia at DeepMind OS : @cgarciae88
@@ -65,11 +61,11 @@
 
 * [Getting Started with RecurrentGemma and FLAX](https://www.kaggle.com/code/philculliton/getting-started-with-recurrentgemma-and-flax/notebook)
   + RecurrentGemma : 2B
-  + Griffin... : [Fine-tuning the 2B Griffin model with Flax](https://www.kaggle.com/code/philculliton/fine-tuning-the-2b-griffin-model-with-flax)
-  + [Inference with RecurrentGemma using JAX and Flax](https://ai.google.dev/gemma/docs/recurrentgemma/recurrentgemma_jax_inference)
+    - Griffin... : [Fine-tuning the 2B Griffin model with Flax](https://www.kaggle.com/code/philculliton/fine-tuning-the-2b-griffin-model-with-flax)
   + [Fine-tuning RecurrentGemma using JAX and Flax](https://ai.google.dev/gemma/docs/recurrentgemma/recurrentgemma_jax_finetune)
     - `model = recurrentgemma.Griffin(config)`
-  + `flax/examples/gemma/` code seems to include `nnx` and `nn`
+  + [Inference with RecurrentGemma using JAX and Flax](https://ai.google.dev/gemma/docs/recurrentgemma/recurrentgemma_jax_inference)
+  + [flax/examples/gemma/](https://github.com/google/flax/tree/main/examples/gemma) code seems to include `nnx` and `nn`
   + [Example: Using pretrained Gemma for inference with Flax NNX](https://flax.readthedocs.io/en/latest/guides/gemma.html)
     - Flax NNX `gemma.transformer.TransformerConfig.from_params` function
 
@@ -96,6 +92,9 @@
 
 
 ## TPU training
+
+* [How to Scale Your Model](https://jax-ml.github.io/scaling-book/)
+  + DeepMind : Highly recommended
 
 * TPU memory (per core)
   + TPU v2 :  8 GB, TPU v3 : 16 GB
@@ -185,6 +184,8 @@
   + This used by [@anton](https://x.com/abacaj/status/1884361852349825444)
   + "TRL GRPO has vLLM now btw + it's soooo much faster wow"
   + [Next version (?) uses TRL_GRPOTrainer](https://x.com/willccbb/status/1886243810323148890)
+  + [Colab version with Qwen 0.5B](https://colab.research.google.com/drive/1bfhs1FMLW3FGa8ydvkOZyBNxLYOu0Hev?usp=sharing)
+    - Runs `vLLM` on Colab GPU too
 
 
 * [7B Model and 8K Examples: Emerging Reasoning with Reinforcement Learning is Both Effective and Efficient](https://hkust-nlp.notion.site/simplerl-reason)
