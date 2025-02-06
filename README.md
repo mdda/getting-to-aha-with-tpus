@@ -58,6 +58,7 @@
   + Gemma2 : 2B + 9B + 27B  (2, 8, 13 Trillion tokens training, respectively)
   + CodeGemma : 2B + 7B
   + [Gemma formatting and system instructions](https://ai.google.dev/gemma/docs/formatting)
+  + Flax NNX `gemma.transformer.TransformerConfig.from_params` function
 
 * [Getting Started with RecurrentGemma and FLAX](https://www.kaggle.com/code/philculliton/getting-started-with-recurrentgemma-and-flax/notebook)
   + RecurrentGemma : 2B
@@ -66,17 +67,7 @@
     - `model = recurrentgemma.Griffin(config)`
   + [Inference with RecurrentGemma using JAX and Flax](https://ai.google.dev/gemma/docs/recurrentgemma/recurrentgemma_jax_inference)
   + [flax/examples/gemma/](https://github.com/google/flax/tree/main/examples/gemma) code seems to include `nnx` and `nn`
-  + [Example: Using pretrained Gemma for inference with Flax NNX](https://flax.readthedocs.io/en/latest/guides/gemma.html)
-    - Flax NNX `gemma.transformer.TransformerConfig.from_params` function
-
-* [`lorax`](https://github.com/davisyoshida/lorax/blob/master/examples/huggingface_gpt2.py)
-  - [May not be the best implementation](https://github.com/jax-ml/jax/discussions/16588)
-
-* [LoRA - NNX LoRA classes](https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/nn/lora.html)
-* [NNX parameter surgery](https://flax.readthedocs.io/en/latest/why.html#model-surgery)
-  + [Model Surgery (less informative)](https://flax.readthedocs.io/en/latest/guides/surgery.html)
-  + [Toy Example Code](https://github.com/google/flax/blob/main/examples/nnx_toy_examples/09_parameter_surgery.py)
-
+  
 
 ### Keras (Jax backend)
 
@@ -89,6 +80,28 @@
 * OLD : [Make a custom loss function in keras](https://stackoverflow.com/questions/45961428/make-a-custom-loss-function-in-keras)
 
 * [`import keras_nlp` LoRA tuning of Gemma](https://ai.google.dev/gemma/docs/lora_tuning)
+
+
+### LoRA for JAX
+
+* [Unlocking the Power of LoRA: Streamlined NLP with EasyDeL in JAX](https:/medium.com/@erfanzare810/unlocking-the-power-of-lora-streamlined-nlp-with-easydel-in-jax-904896c10cb4)
+  + Uses [EasyDeL](https://github.com/erfanzar/EasyDeL)
+    - [EasyDeL Documentation](https://easydel.readthedocs.io/en/latest/)
+    - "Accelerate, Optimize performance with streamlined training and serving options with JAX"
+    - "Built on modern Flax NNX, it provides convenient and effective solutions for training and serving Flax/Jax models on TPU/GPU at scale"
+  + Has `load_in_8bit`, `class DeepseekV3Attention(FlaxAttentionModule):`
+  + [LoRA example for SFT `Mistral-7B-Instruct` on Kaggle TPUs](https://www.kaggle.com/code/citifer/easydel-causal-language-model-trainer-example)
+  + [Training example in documentation](https://easydel.readthedocs.io/en/latest/supervised-fine-tuning-trainer-example.html)
+
+* [LoRA - NNX LoRA classes](https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/nn/lora.html)
+* [NNX parameter surgery](https://flax.readthedocs.io/en/latest/why.html#model-surgery)
+  + [Model Surgery (less informative)](https://flax.readthedocs.io/en/latest/guides/surgery.html)
+  + [Toy Example Code](https://github.com/google/flax/blob/main/examples/nnx_toy_examples/09_parameter_surgery.py)
+
+
+* [`lorax`](https://github.com/davisyoshida/lorax/blob/master/examples/huggingface_gpt2.py)
+  - [May not be the best implementation](https://github.com/jax-ml/jax/discussions/16588)
+
 
 
 ## TPU training
@@ -107,6 +120,18 @@
   + The TPU *Node* architecture is being deprecated. 
     - TPU v2 and v3 are the only TPU versions that still support the TPU Node architecture
     - TPU v4 and newer only support the TPU VM architecture
+
+* [Kaggle TPUs](https://ai.google.dev/gemma/docs/jax_finetune):
+  + 30 hours per week of TPU-v3-8 and 
+  + up to 3 hours at a time in a single session
+  + PU profiling information is now reported in the Notebooks UI
+
+* [Felafax - tune LLaMa3.1 on Google Cloud TPUs for 30\% lower cost and scale seamlessly!](https://github.com/felafax/felafax?tab=readme-ov-file#-finetune-for-free)
+  - Full range of Llama models in Jax; Has LoRA implementation
+  - Seems to 'take care of' spinning up everything (i.e. may be over-kill)
+  - Reddit post by creators : [Tune LlaMa3.1 (written in JAX) for free on Google Colab TPU](https://www.reddit.com/r/LocalLLaMA/comments/1fj9hea/tune_llama31_written_in_jax_for_free_on_google/)
+    + "We’re building AI infra to fine-tune and serve LLMs on non-NVIDIA GPUs (TPUs, Trainium, AMD GPUs)"
+  - Reddit post by creators : [AI infra for non-NVIDIA GPUs (and our JAX journey)](https://www.reddit.com/r/LocalLLaMA/comments/1fj9hea/  
 
 
 ### TPU training (Node-style TPUs = old, including Colab)
@@ -222,6 +247,18 @@
   + Exposes code from TRL training loop a little...
   + `model="Qwen/Qwen2-0.5B-Instruct", reward_funcs="weqweasdas/RM-Gemma-2B",` ... reward model?
 
+* [S1: The \$6 R1 Competitor?](https://timkellogg.me/blog/2025/02/03/s1)
+  + Add 'Wait!' when model wants to do '&lt;/think&gt;' to extend thought process
+  + SFT on thought traces from 
+  + [Entropix Tie In](https://timkellogg.me/blog/2024/10/10/entropix) - in entropix, extra 'encouragement' tokens were added in... So: similar idea
+  + Frugality:
+    - Sifted their dataset of 56K examples down to just the best 1K, 
+    - the core 1K is all that's needed to achieve o1-preview performance on a 32B model.
+    - Adding data didn't raise performance at all.
+
+
+
+
 
 ### GRPO expositions
 
@@ -252,6 +289,13 @@
   + High-performance RLHF framework built on Ray, DeepSpeed and HF Transformers
 * [veRL](https://github.com/volcengine/verl)
   + Volcano Engine Reinforcement Learning for LLM
+
+### Miscellaneous
+
+* [GRPO VRAM Requirements For the GPU Poor](https://www.oxen.ai/blog/grpo-vram-requirements-for-the-gpu-poor)
+  + Points out RAM requirements (with potential torch ideas)
+  + GRPO explanation not very useful
+
 
 
 ## Potential next ideas
