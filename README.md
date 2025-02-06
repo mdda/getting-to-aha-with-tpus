@@ -107,7 +107,7 @@
 ## TPU training
 
 * [How to Scale Your Model](https://jax-ml.github.io/scaling-book/)
-  + DeepMind : Highly recommended
+  + 2025-02-01 - DeepMind : Highly recommended
 
 * TPU memory (per core)
   + TPU v2 :  8 GB, TPU v3 : 16 GB
@@ -180,7 +180,7 @@
 ### Post-R1 GRPO demos
 
 * [Experience the Ahah moment yourself for &lt;\$30](https://github.com/Jiayi-Pan/TinyZero)
-  + @jiayi_pirate, @JunjieZhang12, @xingyaow_, @lifan__yuan
+  + Jiayi Pan=@jiayi_pirate, @JunjieZhang12, @xingyaow_, @lifan__yuan
   + [Author Twitter thread](https://x.com/jiayi_pirate/status/1882839370505621655)
   + TinyZero is a reproduction of DeepSeek R1 Zero in countdown and multiplication tasks
     = We built upon `veRL`
@@ -213,8 +213,9 @@
     - Runs `vLLM` on Colab GPU too
 
 
-* [7B Model and 8K Examples: Emerging Reasoning with Reinforcement Learning is Both Effective and Efficient](https://hkust-nlp.notion.site/simplerl-reason)
-  + Weihao Zeng, Yuzhen Huang, Wei Liu, Keqing He, Qian Liu, Zejun Ma, Junxian He : hkust
+* SimpleRL : [7B Model and 8K Examples: Emerging Reasoning with Reinforcement Learning is Both Effective and Efficient](https://hkust-nlp.notion.site/simplerl-reason)
+  + Weihao Zeng, Yuzhen Huang, Wei Liu, Keqing He, Qian Liu, Zejun Ma, Junxian He=@junxian_he
+ : hkust
     > We reproduce the training of DeepSeek-R1-Zero and DeepSeek-R1 for complex mathematical reasoning, 
     > starting from Qwen-2.5-Math-7B (base model), 
     > and only using 8K (query, final answer) examples from the original MATH dataset. 
@@ -247,10 +248,11 @@
   + Exposes code from TRL training loop a little...
   + `model="Qwen/Qwen2-0.5B-Instruct", reward_funcs="weqweasdas/RM-Gemma-2B",` ... reward model?
 
-* [S1: The \$6 R1 Competitor?](https://timkellogg.me/blog/2025/02/03/s1)
+* [s1: Simple test-time scaling](https://arxiv.org/abs/2501.19393)
   + Add 'Wait!' when model wants to do '&lt;/think&gt;' to extend thought process
-  + SFT on thought traces from 
-  + [Entropix Tie In](https://timkellogg.me/blog/2024/10/10/entropix) - in entropix, extra 'encouragement' tokens were added in... So: similar idea
+  + SFT on thought traces from ...?
+  + [S1: The \$6 R1 Competitor?](https://timkellogg.me/blog/2025/02/03/s1)
+    - [Entropix Tie In](https://timkellogg.me/blog/2024/10/10/entropix) - in entropix, extra 'encouragement' tokens were added in... So: similar idea
   + Frugality:
     - Sifted their dataset of 56K examples down to just the best 1K, 
     - the core 1K is all that's needed to achieve o1-preview performance on a 32B model.
@@ -295,6 +297,12 @@
 * [GRPO VRAM Requirements For the GPU Poor](https://www.oxen.ai/blog/grpo-vram-requirements-for-the-gpu-poor)
   + Points out RAM requirements (with potential torch ideas)
   + GRPO explanation not very useful
+
+* [The N Implementation Details of RLHF with PPO](https://huggingface.co/blog/the_n_implementation_details_of_rlhf_with_ppo)
+  + 2023-10-24
+
+* [The 37 Implementation Details of Proximal Policy Optimization](https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/)
+  + 2022-03-25
 
 
 
