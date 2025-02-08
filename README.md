@@ -126,6 +126,15 @@
   + up to 3 hours at a time in a single session
   + PU profiling information is now reported in the Notebooks UI
 
+* Pricing per core + Quotas: (# of premptible cores, zone)
+  + TPU v2 : 32+, EU+US, 16 asia-east1
+  + TPU v3 : 32+, EU+US
+  + TPU v4 : 'unlimited', everywhere
+  + TPU v5e : 32, EU+US+Asia
+  + TPU v5p : 'unlimited', EU+US+Asia
+  + TPU v6e : 'unlimited', EU+US+Asia
+
+
 * [Felafax - tune LLaMa3.1 on Google Cloud TPUs for 30\% lower cost and scale seamlessly!](https://github.com/felafax/felafax?tab=readme-ov-file#-finetune-for-free)
   - Full range of Llama models in Jax; Has LoRA implementation
   - Seems to 'take care of' spinning up everything (i.e. may be over-kill)
