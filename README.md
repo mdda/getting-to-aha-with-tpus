@@ -127,12 +127,12 @@
   + PU profiling information is now reported in the Notebooks UI
 
 * Pricing per core + Quotas: (# of premptible cores, zone)
-  + TPU v2 : 32+, EU+US, 16 asia-east1
-  + TPU v3 : 32+, EU+US
-  + TPU v4 : 'unlimited', everywhere
-  + TPU v5e : 32, EU+US+Asia
-  + TPU v5p : 'unlimited', EU+US+Asia
-  + TPU v6e : 'unlimited', EU+US+Asia
+  + TPU v2  : \$1.31 : 32+, EU+US, 16 asia-east1
+  + TPU v3  : \$2.20 : 32+, EU+US
+  + TPU v4  : \$3.22 : 'unlimited', everywhere
+  + TPU v5e : \$1.56 : 32, EU+US+Asia
+  + TPU v5p : \$4.20 :  'unlimited', EU+US+Asia
+  + TPU v6e : \$2.97? : 'unlimited', EU+US+Asia
 
 
 * [Felafax - tune LLaMa3.1 on Google Cloud TPUs for 30\% lower cost and scale seamlessly!](https://github.com/felafax/felafax?tab=readme-ov-file#-finetune-for-free)
