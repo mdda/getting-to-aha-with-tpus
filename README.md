@@ -243,10 +243,15 @@
     - has commented on original `willccbb/grpo_demo.py` gist
   + ["Got a better result on qwen2.5-0.5b (base) &rarr; 56% gsm8k"](https://x.com/abacaj/status/1886308242814320834)
 
-* [manged to hack grpo with unsloth on free colab](https://colab.research.google.com/drive/1P7frB3fjMv6vjSINqiydAf6gnMab2TiL?usp=sharing)
-  + "it's painfully slow; but works :p"
-  + Exposes code from TRL training loop a little...
-  + `model="Qwen/Qwen2-0.5B-Instruct", reward_funcs="weqweasdas/RM-Gemma-2B",` ... reward model?
+* [Train your own R1 reasoning model with Unsloth](https://unsloth.ai/blog/r1-reasoning)
+  + [Daniel Han (unsloth) thread](https://x.com/danielhanchen/status/1887564724071768529)
+    - We removed double memory usage during vLLM serving and finetuning
+    - 70% less VRAM finetuning and 20x faster inference all in one package! 
+    - LoRA / QLoRA also originally *did not work* for people when doing GRPO in the starter script
+  + [GRPO with unsloth on free colab](https://colab.research.google.com/drive/1P7frB3fjMv6vjSINqiydAf6gnMab2TiL?usp=sharing)
+    - "it's painfully slow; but works :p"
+    - Exposes code from TRL training loop a little...
+    - `model="Qwen/Qwen2-0.5B-Instruct", reward_funcs="weqweasdas/RM-Gemma-2B",` ... reward model?
 
 * [s1: Simple test-time scaling](https://arxiv.org/abs/2501.19393)
   + Add 'Wait!' when model wants to do '&lt;/think&gt;' to extend thought process
@@ -259,6 +264,16 @@
     - Adding data didn't raise performance at all.
 
 
+#### Contrarian Ideas
+
+* [There May Not be Aha Moment in R1-Zero-like Training — A Pilot Study](https://oatllm.notion.site/oat-zero)
+  + SEA AI Labs in SG (!)
+  + [OAT-Zero code on GitHub](https://github.com/sail-sg/oat-zero)
+  + Key points:
+    - "We found Aha moment (such as self-reflection patterns) appears at epoch 0, namely base models"
+    - "Superficial Self-Reflection (SSR) from base models' responses" - leading to wrong answer
+    - "increasing response length phenomenon not emergence .. but RL optimizing rule-based reward"
+  + [OAT RL library](https://github.com/sail-sg/oat) - A research-friendly framework for LLM online alignment
 
 
 
