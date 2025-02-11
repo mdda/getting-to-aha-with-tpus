@@ -216,6 +216,9 @@
       + https://huggingface.co/docs/trl/main/en/grpo_trainer#trl.GRPOConfig.beta
   + (updated code, running smooth now on Qwen-1.5B w/ longer max_completion_length + higher num_generations)
   + This used by [@anton](https://x.com/abacaj/status/1884361852349825444)
+    - [Qwen2.5-0.5B (base model) directly goes into step by step breakdown with zero prompting](https://x.com/abacaj/status/1888826994248323354) (and Llama doesn't produce step-wise thinking of its own accord)
+    - 
+]
   + "TRL GRPO has vLLM now btw + it's soooo much faster wow"
   + [Next version (?) uses TRL_GRPOTrainer](https://x.com/willccbb/status/1886243810323148890)
   + [Colab version with Qwen 0.5B](https://colab.research.google.com/drive/1bfhs1FMLW3FGa8ydvkOZyBNxLYOu0Hev?usp=sharing)
@@ -257,10 +260,16 @@
     - We removed double memory usage during vLLM serving and finetuning
     - 70% less VRAM finetuning and 20x faster inference all in one package! 
     - LoRA / QLoRA also originally *did not work* for people when doing GRPO in the starter script
+  + [unsloth thread](https://x.com/UnslothAI/status/1887562753126408210)
   + [GRPO with unsloth on free colab](https://colab.research.google.com/drive/1P7frB3fjMv6vjSINqiydAf6gnMab2TiL?usp=sharing)
     - "it's painfully slow; but works :p"
     - Exposes code from TRL training loop a little...
     - `model="Qwen/Qwen2-0.5B-Instruct", reward_funcs="weqweasdas/RM-Gemma-2B",` ... reward model?
+  + [Commentary](https://x.com/Hesamation/status/1888285721863004411)
+    - GRPO is now optimized to use 80% less VRAM
+    - GRPO now with LoRA and QLoRA
+    - Qwen2.5(1.5B) can be trained with just 7GB!
+    - Llama3.1(8B) training with 15GB
 
 * [s1: Simple test-time scaling](https://arxiv.org/abs/2501.19393)
   + Add 'Wait!' when model wants to do '&lt;/think&gt;' to extend thought process
@@ -300,7 +309,11 @@
   + [Run it yourself: `RicardoDominguez/grpo_llama2-7b-chat_gsm8k.sh`](https://gist.github.com/RicardoDominguez/72603d278ed26f0dd55af6ffd414b797)
     - Seems like unrolled code from TRL ... everything is there
 
-   
+### GRPO Hints
+ 
+* [DeepSeek R1 training is straight-forward, UNTIL you understand the complexities in writing GRPO Verifiers](https://x.com/bookwormengr/status/1888530568645861865)
+  + Somewhat ranty
+
 
 ### GRPO libraries
 
