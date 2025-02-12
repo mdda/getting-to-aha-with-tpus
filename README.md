@@ -9,12 +9,10 @@
 
 ## R1 Notes
 
-* https://x.com/Guodaya/status/1886635010251518330 
-  + DeepSeek Researcher
-  + The 660B R1-Zero and R1 began running after the release of V3, 
-    with training taking approximately 2-3 weeks. 
-    The R1 model we referred to prior to this time (e.g., in the V3 tech report) 
-    was the R1-Lite or the R1-Lite-Zero.
+* https://x.com/Guodaya/status/1886635010251518330 (now deleted)
+  + =Researcher at DeepSeek 
+  + The 660B R1-Zero and R1 began running after the release of V3, with training taking approximately 2-3 weeks
+  + The R1 model prior to this time (e.g., in the V3 tech report) was the R1-Lite or the R1-Lite-Zero
 
 
 ## JAX Resources
@@ -49,6 +47,9 @@
   + [JORA: JAX Tensor-Parallel LoRA Library for Retrieval Augmented Fine-Tuning](https://arxiv.org/abs/2403.11366)
     - [GitHub repo](https://github.com/aniquetahir/JORA)
     - "Update (4/8/2024): JORA now supports Google's Gemma models"
+
+* [Optax may have gradient_accumulation built in](https://github.com/google-deepmind/optax/issues/320)
+
 
 
 ### Gemma Models
@@ -189,7 +190,7 @@
 ### Post-R1 GRPO demos
 
 * [Experience the Ahah moment yourself for &lt;\$30](https://github.com/Jiayi-Pan/TinyZero)
-  + Jiayi Pan=@jiayi_pirate, @JunjieZhang12, @xingyaow_, @lifan__yuan
+  + Berkeley : Jiayi Pan=@jiayi_pirate, @JunjieZhang12, @xingyaow_, @lifan__yuan
   + [Author Twitter thread](https://x.com/jiayi_pirate/status/1882839370505621655)
   + TinyZero is a reproduction of DeepSeek R1 Zero in countdown and multiplication tasks
     = We built upon `veRL`
@@ -274,12 +275,21 @@
 * [s1: Simple test-time scaling](https://arxiv.org/abs/2501.19393)
   + Add 'Wait!' when model wants to do '&lt;/think&gt;' to extend thought process
   + SFT on thought traces from ...?
-  + [S1: The \$6 R1 Competitor?](https://timkellogg.me/blog/2025/02/03/s1)
+  + [s1: The \$6 R1 Competitor?](https://timkellogg.me/blog/2025/02/03/s1)
     - [Entropix Tie In](https://timkellogg.me/blog/2024/10/10/entropix) - in entropix, extra 'encouragement' tokens were added in... So: similar idea
+  + [repo on GitHub](https://github.com/simplescaling/s1)
+  + [Project Page](https://simplescaling.github.io/)
   + Frugality:
     - Sifted their dataset of 56K examples down to just the best 1K, 
     - the core 1K is all that's needed to achieve o1-preview performance on a 32B model.
     - Adding data didn't raise performance at all.
+  + [s1.1 : trained on same 1K questions](https://x.com/Muennighoff/status/1889310803746246694)
+    - DeepSeek answers, rather than Gemini generations
+    - As it is just 1K examples, training is extremely cheap and took just 26 minutes
+    - To control test-time compute, we develop “budget forcing”:
+      * We either force the model to end its thinking or 
+      * extend it by appending Wait when the model tries to stop
+      * This simple method improves our model
 
 
 #### Contrarian Ideas
@@ -344,6 +354,25 @@
 
 
 ## Potential next ideas
+
+### RL on Deepseek 'hard distilled' models
+
+* [DeepScaleR: Surpassing O1-Preview with a 1.5B Model by Scaling RL](https://pretty-radio-b75.notion.site/DeepScaleR-Surpassing-O1-Preview-with-a-1-5B-Model-by-Scaling-RL-19681902c1468005bed8ca303013a4e2)
+  + Berkeley Sky Computing Lab (not the same authors as original \$30 one, AFAICT)
+  + "1.5B model beats o1-preview on math by RL"
+  + Cost:
+    - Overall, our training run consists of ~1,750 steps. 
+    - The initial 8K context phase was trained on 8 A100 GPUs, 
+    - while the 16K and 24K phases scaled up training to 32 A100 GPUs. 
+    - In total, the training took ~3,800 A100 hours = roughly 5 days on 32 A100s
+    - \$4500 in compute cost
+  + Reddit discussion [DeepScaleR-1.5B-Preview](https://www.reddit.com/r/LocalLLaMA/comments/1imm4wc/deepscaler15bpreview_further_training/)
+  + [Model on HF](https://huggingface.co/agentica-org/DeepScaleR-1.5B-Preview)
+  + [Project on GitHub](https://github.com/agentica-project/deepscaler) 
+    - uses their own [veRL](https://github.com/agentica-project/verl)
+
+
+
 
 ### Agentic RAG
 
