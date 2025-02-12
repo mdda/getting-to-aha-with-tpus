@@ -218,7 +218,7 @@
   + (updated code, running smooth now on Qwen-1.5B w/ longer max_completion_length + higher num_generations)
   + This used by [@anton](https://x.com/abacaj/status/1884361852349825444)
     - [Qwen2.5-0.5B (base model) directly goes into step by step breakdown with zero prompting](https://x.com/abacaj/status/1888826994248323354) (and Llama doesn't produce step-wise thinking of its own accord)
-    - 
+    - [when reward starts going up at step &gt;100 it's either hacking it or discovered something](https://x.com/abacaj/status/1889739663855743472)
 ]
   + "TRL GRPO has vLLM now btw + it's soooo much faster wow"
   + [Next version (?) uses TRL_GRPOTrainer](https://x.com/willccbb/status/1886243810323148890)
@@ -290,6 +290,7 @@
       * We either force the model to end its thinking or 
       * extend it by appending Wait when the model tries to stop
       * This simple method improves our model
+  + GDE Blogpost : [s1 and s1.1](https://gonzoml.substack.com/p/s1-simple-test-time-scaling)
 
 
 #### Contrarian Ideas
@@ -324,6 +325,11 @@
 * [DeepSeek R1 training is straight-forward, UNTIL you understand the complexities in writing GRPO Verifiers](https://x.com/bookwormengr/status/1888530568645861865)
   + Somewhat ranty
 
+* Trellis video series:
+  + 1: [Reinforcement Learning for LLMs in 2025](https://www.youtube.com/watch?v=C4HxJQ2QzWo)
+    - Set-up of training, with curation of SFT data (mostly)
+  + 2: [How does GRPO work?](https://www.youtube.com/watch?v=iHlarYGLMbY)
+    - 32mins : TODO:WATCH!
 
 ### GRPO libraries
 
@@ -378,6 +384,10 @@
 
 * [Eliciting Critical Reasoning in Retrieval-Augmented Language Models via Contrastive Explanations](https://arxiv.org/abs/2410.22874)
 * [Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection](https://arxiv.org/abs/2310.11511)
+* [Chain-of-Retrieval Augmented Generation](https://arxiv.org/abs/2501.14342)
+  + Microsoft
+  + More than 10 points improvement in EM score compared to strong baseline
+  + Establishes a new SotA performance across a diverse range of knowledge-intensive tasks
 
 
 #### Datasets
@@ -394,6 +404,19 @@
 * [Natural Questions: A Benchmark for Question Answering Research](https://aclanthology.org/Q19-1026/)
   + [Google : NaturalQuestions](https://ai.google.com/research/NaturalQuestions/dataset)
   + [Natural Questions SoTA](https://paperswithcode.com/sota/question-answering-on-natural-questions)
+
+
+### Agent RL
+
+* [Grounding Large Language Models in Interactive Environments with Online Reinforcement Learning](https://arxiv.org/abs/2302.02662)
+  + T5 (in 2023-02)
+* [RAGEN: A General-Purpose Reasoning Agent Training Framework](https://github.com/ZihanWang314/ragen)
+  + Code on GitHub
+  + [Author Thread](https://x.com/wzihanw/status/1884092805598826609)
+  + We run RAGEN on the Gym-Sokoban task: 
+    - Qwen-2.5-{0.5B, 3B}-{Instruct, None}
+    - DeepSeek-R1-Distill-Qwen-1.5B
+
 
 
 ### Task Vectors
