@@ -17,19 +17,20 @@
 
 ## JAX Resources
 
-### Jax (generic)
+### JAX (generic)
 
 * [Flow Matching in 50 lines of JAX](https://x.com/cgarciae88/status/1867340873136038293)
   + Cristian Garcia at DeepMind OS : @cgarciae88
 
 * Google Docs: 
-  + [Fine-tuning `gemma-2b-it` using JAX and Flax](https://ai.google.dev/gemma/docs/jax_finetune)
+  + [MNIST example (JAX.nnx) with training loop](https://flax.readthedocs.io/en/latest/mnist_tutorial.html)
+  + [Fine-tuning `gemma-2b-it` using JAX and Flax](https://ai.google.dev/gemma/docs/jax_finetune) (seems like 'pure JAX')
     - Colab-Pro A100 GPU
       + Could also use Kaggle's (free) TPU v3-8  
       + Colab (free) TPU v2 is insufficient
         * Even though `optimizer = optax.sgd(training_cfg.learning_rate)`
     - The gemma library was written with:
-      + JAX, Flax, 
+      + JAX, Flax, nnx(?)
       + Orbax (a JAX-based library for training utilities like checkpointing), and 
       + SentencePiece (a tokenizer/detokenizer library).
     - More [documentation about packages](https://ai.google.dev/gemma/docs/jax_finetune#learn_more)
@@ -46,31 +47,33 @@
   + Leverages JAX's JIT compilation and tensor-sharding capabilities
   + [JORA: JAX Tensor-Parallel LoRA Library for Retrieval Augmented Fine-Tuning](https://arxiv.org/abs/2403.11366)
     - [GitHub repo](https://github.com/aniquetahir/JORA)
-    - "Update (4/8/2024): JORA now supports Google's Gemma models"
+    - "Update (8-Apr-2024): JORA now supports Google's Gemma models"
 
 * [Optax may have gradient_accumulation built in](https://github.com/google-deepmind/optax/issues/320)
+  - [Optax documentation example (JAX/linen)](https://optax.readthedocs.io/en/latest/_collections/examples/gradient_accumulation.html)
 
 
 
 ### Gemma Models
 
-* [Using pretrained Gemma for inference with Flax NNX](https://flax.readthedocs.io/en/latest/guides/gemma.html)
+* [Using pretrained Gemma for inference with Flax NNX](https://flax.readthedocs.io/en/latest/guides/gemma.html) **
   + Gemma1 : 2.6B + 7B
   + Gemma2 : 2B + 9B + 27B  (2, 8, 13 Trillion tokens training, respectively)
   + CodeGemma : 2B + 7B
   + [Gemma formatting and system instructions](https://ai.google.dev/gemma/docs/formatting)
   + Flax NNX `gemma.transformer.TransformerConfig.from_params` function
 
-* [Getting Started with RecurrentGemma and FLAX](https://www.kaggle.com/code/philculliton/getting-started-with-recurrentgemma-and-flax/notebook)
+* [Getting Started with RecurrentGemma and Flax ()](https://www.kaggle.com/code/philculliton/getting-started-with-recurrentgemma-and-flax/notebook)
   + RecurrentGemma : 2B
-    - Griffin... : [Fine-tuning the 2B Griffin model with Flax](https://www.kaggle.com/code/philculliton/fine-tuning-the-2b-griffin-model-with-flax)
-  + [Fine-tuning RecurrentGemma using JAX and Flax](https://ai.google.dev/gemma/docs/recurrentgemma/recurrentgemma_jax_finetune)
+    - Griffin... : [Fine-tuning the 2B Griffin model with Flax.nn](https://www.kaggle.com/code/philculliton/fine-tuning-the-2b-griffin-model-with-flax)
+  + [Inference with RecurrentGemma using JAX and Flax.nn](https://ai.google.dev/gemma/docs/recurrentgemma/recurrentgemma_jax_inference)
+  + [Fine-tuning RecurrentGemma using JAX and Flax.nn](https://ai.google.dev/gemma/docs/recurrentgemma/recurrentgemma_jax_finetune)
     - `model = recurrentgemma.Griffin(config)`
-  + [Inference with RecurrentGemma using JAX and Flax](https://ai.google.dev/gemma/docs/recurrentgemma/recurrentgemma_jax_inference)
-  + [flax/examples/gemma/](https://github.com/google/flax/tree/main/examples/gemma) code seems to include `nnx` and `nn`
+  + [flax/examples/gemma/](https://github.com/google/flax/tree/main/examples/gemma) 
+    - code seems to include `nnx` and `nn`
   
 
-### Keras (Jax backend)
+### Keras (JAX backend)
 
 * Kaggle [Gemma 2 TPU Fine-tuning](https://www.kaggle.com/code/matthewdwatson/gemma-2-tpu-fine-tuning)
   + Uses Keras and includes : 
@@ -89,7 +92,7 @@
   + Uses [EasyDeL](https://github.com/erfanzar/EasyDeL)
     - [EasyDeL Documentation](https://easydel.readthedocs.io/en/latest/)
     - "Accelerate, Optimize performance with streamlined training and serving options with JAX"
-    - "Built on modern Flax NNX, it provides convenient and effective solutions for training and serving Flax/Jax models on TPU/GPU at scale"
+    - "Built on modern Flax NNX, it provides convenient and effective solutions for training and serving Flax/JAX models on TPU/GPU at scale"
   + Has `load_in_8bit`, `class DeepseekV3Attention(FlaxAttentionModule):`
   + [LoRA example for SFT `Mistral-7B-Instruct` on Kaggle TPUs](https://www.kaggle.com/code/citifer/easydel-causal-language-model-trainer-example)
   + [Training example in documentation](https://easydel.readthedocs.io/en/latest/supervised-fine-tuning-trainer-example.html)
@@ -98,7 +101,8 @@
 * [NNX parameter surgery](https://flax.readthedocs.io/en/latest/why.html#model-surgery)
   + [Model Surgery (less informative)](https://flax.readthedocs.io/en/latest/guides/surgery.html)
   + [Toy Example Code](https://github.com/google/flax/blob/main/examples/nnx_toy_examples/09_parameter_surgery.py)
-
+* [`nnx.Optimizer` state can be filtered](https://github.com/google/flax/blob/main/flax/nnx/training/optimizer.py#L183)
+  + [But the LoRA class already declares the right `lora_param_type` ~annotations](https://flax.readthedocs.io/en/latest/_modules/flax/nnx/nn/lora.html#LoRA)
 
 * [`lorax`](https://github.com/davisyoshida/lorax/blob/master/examples/huggingface_gpt2.py)
   - [May not be the best implementation](https://github.com/jax-ml/jax/discussions/16588)
@@ -137,7 +141,7 @@
 
 
 * [Felafax - tune LLaMa3.1 on Google Cloud TPUs for 30\% lower cost and scale seamlessly!](https://github.com/felafax/felafax?tab=readme-ov-file#-finetune-for-free)
-  - Full range of Llama models in Jax; Has LoRA implementation
+  - Full range of Llama models in JAX; Has LoRA implementation
   - Seems to 'take care of' spinning up everything (i.e. may be over-kill)
   - Reddit post by creators : [Tune LlaMa3.1 (written in JAX) for free on Google Colab TPU](https://www.reddit.com/r/LocalLLaMA/comments/1fj9hea/tune_llama31_written_in_jax_for_free_on_google/)
     + "We’re building AI infra to fine-tune and serve LLMs on non-NVIDIA GPUs (TPUs, Trainium, AMD GPUs)"
