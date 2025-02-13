@@ -331,6 +331,15 @@
   + 2: [How does GRPO work?](https://www.youtube.com/watch?v=iHlarYGLMbY)
     - 32mins : TODO:WATCH!
 
+* [GRPO implementation update](https://github.com/allenai/open-instruct/issues/534#issuecomment-2634656168)
+  + Fixing up the implementation in AllenAI RL library
+  + [Other comments](https://x.com/vwxyzjn/status/1885329398821187633):
+    - When directly minimizing the KL loss, kl3 just appears much more numerically stable. 
+    - And the &gt;0 guarantee here is also really nice (kl1 could go negative).
+  + [John Schulman's Homepage : Approximating KL Divergence](http://joschu.net/blog/kl-approx.html)
+
+
+
 ### GRPO libraries
 
 * [GRPO from DeepSeek-R1 is now available in Hugging Face `trl` library](https://x.com/Hesamation/status/1882001485636178414)
@@ -376,7 +385,8 @@
   + [Model on HF](https://huggingface.co/agentica-org/DeepScaleR-1.5B-Preview)
   + [Project on GitHub](https://github.com/agentica-project/deepscaler) 
     - uses their own [veRL](https://github.com/agentica-project/verl)
-
+  + ["DeepScaleR is by far the most sophisticated and impressive thing built on R1 this far"](https://x.com/teortaxesTex/status/1889914611555865007)
+    - Maximizing intelligence per FLOP is a natural step after test time unlock
 
 
 
