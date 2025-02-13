@@ -337,7 +337,8 @@
     - When directly minimizing the KL loss, kl3 just appears much more numerically stable. 
     - And the &gt;0 guarantee here is also really nice (kl1 could go negative).
   + [John Schulman's Homepage : Approximating KL Divergence](http://joschu.net/blog/kl-approx.html)
-
+  + BUT ... [LMs with GRPO etc with KL penalty = 0 works](https://x.com/natolambert/status/1890071898869907646)
+    - "These are from experiments and this is not official training advice."
 
 
 ### GRPO libraries
@@ -418,6 +419,9 @@
 
 ### Agent RL
 
+* [Agentic RAG systems and taxonomy](https://x.com/tom_doerr/status/1889905154465448265)
+  + [Actual repo](https://github.com/asinghcsu/AgenticRAG-Survey)
+
 * [Grounding Large Language Models in Interactive Environments with Online Reinforcement Learning](https://arxiv.org/abs/2302.02662)
   + T5 (in 2023-02)
 * [RAGEN: A General-Purpose Reasoning Agent Training Framework](https://github.com/ZihanWang314/ragen)
@@ -426,7 +430,8 @@
   + We run RAGEN on the Gym-Sokoban task: 
     - Qwen-2.5-{0.5B, 3B}-{Instruct, None}
     - DeepSeek-R1-Distill-Qwen-1.5B
-
+* [Scaled Cognition: "first ever models trained specifically for agentic applications"](https://x.com/ScaledCognition/status/1889721166421479751)
+  - "APT-1, is now #1 on agentic benchmarks" ...
 
 
 ### Task Vectors
