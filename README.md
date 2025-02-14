@@ -7,6 +7,17 @@
   + This will make it far, far more likely that TPUs could become an experimentation platform for the curious : The current barriers to entry are very high.
 
 
+## The Plan
+
+* Use Gemma2-2B-base on:
+  + Kaggle TPU v3-8; and 
+  + Colab TPU v2-8 (potentially - it would be very tight)
+* Reasoninng task : Countdown task from TinyZero
+  + RL objective : GRPO
+* Goal : Get to "Aha!" using \$free TPU resources
+
+
+
 ## R1 Notes
 
 * https://x.com/Guodaya/status/1886635010251518330 (now deleted)
