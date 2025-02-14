@@ -397,6 +397,9 @@
 
 ### Agentic RAG
 
+* [Agentic RAG systems and taxonomy](https://x.com/tom_doerr/status/1889905154465448265)
+  + [Actual repo](https://github.com/asinghcsu/AgenticRAG-Survey)
+
 * [Eliciting Critical Reasoning in Retrieval-Augmented Language Models via Contrastive Explanations](https://arxiv.org/abs/2410.22874)
 * [Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection](https://arxiv.org/abs/2310.11511)
 * [Chain-of-Retrieval Augmented Generation](https://arxiv.org/abs/2501.14342)
@@ -422,9 +425,6 @@
 
 
 ### Agent RL
-
-* [Agentic RAG systems and taxonomy](https://x.com/tom_doerr/status/1889905154465448265)
-  + [Actual repo](https://github.com/asinghcsu/AgenticRAG-Survey)
 
 * [Grounding Large Language Models in Interactive Environments with Online Reinforcement Learning](https://arxiv.org/abs/2302.02662)
   + T5 (in 2023-02)
