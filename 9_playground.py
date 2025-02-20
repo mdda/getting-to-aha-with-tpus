@@ -2,7 +2,7 @@
 # jupyter:
 #   jupytext:
 #     cell_metadata_filter: -all
-#     formats: cache-notebooks//ipynb,py
+#     formats: cache-notebooks//ipynb,py:light
 #     text_representation:
 #       extension: .py
 #       format_name: light
