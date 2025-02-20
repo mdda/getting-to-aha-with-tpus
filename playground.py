@@ -16,12 +16,17 @@
 
 # +
 ## Follows https://flax.readthedocs.io/en/latest/nnx_basics.html
+
+# ! uv pip install -U flax
 # -
 
 from flax import nnx
 import jax
 import jax.numpy as jnp
 
+
+# %load_ext autoreload
+# %autoreload 2
 
 class Linear(nnx.Module):
   def __init__(self, din: int, dout: int, *, rngs: nnx.Rngs):
@@ -104,6 +109,16 @@ non_frozen_params = nnx.All(nnx.Param, nnx.Not(nnx.WithTag('frozen')))
 optimizer = nnx.Optimizer(model, optax.adam(1e-3), wrt=non_frozen_params) # 
 
 optimizer
+# -
+
+
+
+
+
+# +
+import aha_dataset.countdown
+
+aha_dataset.countdown.generate_puzzle()
 # -
 
 

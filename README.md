@@ -472,9 +472,18 @@
 
 
 
+## Running
 
+* Run jupyterlab notebook enviroment:
 ```bash
 jupytext --set-formats cache-notebooks//ipynb,py *.py
 #...
 jupyter-lab --port 8282 --no-browser
+```
+
+* Test the countdown puzzle generation:
+```bash
+pushd ./aha_dataset/countdown/
+python generator.py 
+popd
 ```
