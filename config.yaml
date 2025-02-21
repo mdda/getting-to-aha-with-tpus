@@ -1,12 +1,14 @@
 model:
   kaggle_dir: './models'
   
-  GEMMA_VARIANT: 'gemma-2b' # @param ['gemma-2b', 'gemma-2b-it', 'gemma-7b', 'gemma-7b-it']
-  kaggle_model: "google/gemma/flax/${.GEMMA_VARIANT}"
-  weights_dir: "${.kaggle_dir}/google/gemma/flax/${.GEMMA_VARIANT}/1"
-  #GEMMA_VARIANT: 'gemma2-2b' # @param ['gemma2-2b', 'gemma2-2b-it', 'gemma2-9b', 'gemma2-9b-it']
-  #kaggle_model: "google/gemma-2/flax/${.GEMMA_VARIANT}"
-  #weights_dir: "${.kaggle_dir}/google/gemma-2/flax/${.GEMMA_VARIANT}/1"
+  #GEMMA_VARIANT: '2b' # @param ['2b', '2b-it', '7b', '7b-it']
+  ##GEMMA_VARIANT: 'gemma-1.1-2b' # @param ['gemma-1.1-2b', 'gemma-1.1-2b-it', 'gemma-1.1-7b', 'gemma-1.1-7b-it']
+  #kaggle_id: "google/gemma/flax/${.GEMMA_VARIANT}"
+  #weights_dir: "${.kaggle_dir}/google/gemma/flax/${.GEMMA_VARIANT}/2"
+  
+  GEMMA_VARIANT: 'gemma2-2b' # @param ['gemma2-2b', 'gemma2-2b-it', 'gemma2-9b', 'gemma2-9b-it']
+  kaggle_id: "google/gemma-2/flax/${.GEMMA_VARIANT}"
+  weights_dir: "${.kaggle_dir}/google/gemma-2/flax/${.GEMMA_VARIANT}/1"
   
   ckpt_path:  "${.weights_dir}/${.GEMMA_VARIANT}"
   vocab_path: "${.weights_dir}/tokenizer.model"
