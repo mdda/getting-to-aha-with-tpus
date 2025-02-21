@@ -1,0 +1,12 @@
+model:
+  GEMMA_VARIANT: 'gemma2-2b' # @param ['gemma2-2b', 'gemma2-2b-it', 'gemma2-7b', 'gemma2-7b-it']
+  kaggle_model: "google/gemma-2/flax/${.GEMMA_VARIANT}"
+  
+  kaggle_dir: './models'
+  weights_dir: "${.kaggle_dir}/google/gemma-2/flax/${.GEMMA_VARIANT}/1"
+  
+  ckpt_path:  "${.weights_dir}/${.GEMMA_VARIANT}"
+  vocab_path: "${.weights_dir}/tokenizer.model"
+
+nnx:
+  tmp_dir: './tmp_gemma_nnx'
