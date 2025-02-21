@@ -35,21 +35,22 @@ for phase in "nothing-new-required installations-performed".split(' '):
     # ! pip install kagglehub treescope
 f"Installed with {phase}"
 
-## https://flax.readthedocs.io/en/latest/guides/gemma.html
-import kagglehub
-
-kagglehub.login()
-
+GEMMA_VARIANT = 'gemma2-2b' # @param ['gemma2-2b', 'gemma2-2b-it', 'gemma2-7b', 'gemma2-7b-it'] {type:"string"}
+#weights_dir = '/home/andrewsm/.cache/kagglehub/models/google/gemma-2/flax/gemma2-2b/1'
+weights_dir = f'./models/{GEMMA_VARIANT}'
 
 # +
+## https://flax.readthedocs.io/en/latest/guides/gemma.html
 from IPython.display import clear_output  # Makes the kaggle download less disgusting
+import kagglehub
 
-GEMMA_VARIANT = 'gemma2-2b' # @param ['gemma2-2b', 'gemma2-2b-it', 'gemma2-7b', 'gemma2-7b-it'] {type:"string"}
-weights_dir   = kagglehub.model_download(f'google/gemma-2/flax/{GEMMA_VARIANT}')
+if not os.is_dir(weights_dir):
+  kagglehub.login()
+  weights_dir = kagglehub.model_download(f'google/gemma-2/flax/{GEMMA_VARIANT}', path=weights_dir)
 weights_dir  # '/home/andrewsm/.cache/kagglehub/models/google/gemma-2/flax/gemma2-2b/1'
 # -
 
-# ! ls -l '/home/andrewsm/.cache/kagglehub/models/google/gemma-2/flax/gemma2-2b/1'
+# ! ls -l ${weights_dir}
 
 ckpt_path     = f'{weights_dir}/{GEMMA_VARIANT}'
 vocab_path    = f'{weights_dir}/tokenizer.model'

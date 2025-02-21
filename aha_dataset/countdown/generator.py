@@ -43,7 +43,7 @@ def random_expression(numbers):
 #      break # Ensure diversity of operations and near full usage
 
   if len(used_ops)==0 or len(used_numbers)<len(numbers)*.8:
-    value=-999 # Ensure diversity of operations and near full usage (invalidate otherwise)
+    expression_arr=[]] # Ensure diversity of operations and near full usage (invalidate otherwise)
   
   return expression_arr, value
 
@@ -54,7 +54,7 @@ def generate_puzzle(seed=None, target_min=100, target_max=999):
     numbers = generate_numbers()
     expression_arr, target = random_expression(numbers)
     #print(sorted(numbers), target, expression_arr)
-    if target_min<=target<=target_max: # Ensure result is within bounds
+    if target_min<=target<=target_max and len(expression_arr)>0: # result within bounds, and expression_arr valid
       expression='('*(len(expression_arr)-1) + ''.join(expression_arr)
       return sorted(numbers), target, expression
 
