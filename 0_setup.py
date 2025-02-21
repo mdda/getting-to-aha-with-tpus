@@ -24,6 +24,10 @@ import os
 # %autoreload 2
 
 # +
+# JAX will preallocate 75% of the total GPU memory when the first JAX operation is run. 
+#   https://docs.jax.dev/en/latest/gpu_memory_allocation.html
+
+# +
 import subprocess
 
 try:
