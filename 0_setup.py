@@ -113,6 +113,11 @@ metadata = params_lib.load_metadata( abs_path )
 ## https://github.com/google/flax/blob/main/examples/gemma/transformer.py#L60
 #metadata['somewhere in orbax checkpoint']  # This was used to detect other v2 models...
 
+# +
+#params=None  # Try and reclaim CPU memory - seems to acheive no RAM reduction
+#metadata=None
+# -
+
 vocab = spm.SentencePieceProcessor()
 vocab.Load(config.model.vocab_path);
 
@@ -173,7 +178,7 @@ import time
 t0=time.time()
 out_data = sampler(
   input_strings=input_batch,
-  total_generation_steps=300,  # The number of steps performed when generating a response.
+  total_generation_steps=10,  # The number of steps performed when generating a response.
 )
 print(f"Overall : {time.time()-t0:.2f}sec")
 # cache['v'].shape=(1, 1024, 4, 256)
