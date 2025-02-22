@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.16.7
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -164,15 +164,17 @@ transformer = transformer_lib.Transformer.from_params(params, config_gemma2_2b)
 
 nnx.display(transformer)
 
-sampler = sampler_lib.Sampler(
-    transformer=transformer,
-    vocab=vocab,
-)
-
 # Here, batch_size==1.  Having a different batch_size will trigger recompilation
 input_batch = [
   "\n# Python program for implementation of Bubble Sort\n\ndef bubbleSort(arr):",
 ]
+
+
+
+sampler = sampler_lib.Sampler(
+  transformer=transformer,
+  vocab=vocab,
+)
 
 import time
 t0=time.time()

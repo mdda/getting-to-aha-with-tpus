@@ -474,6 +474,13 @@
 
 ## Running
 
+```bash
+sudo snap install astral-uv --classic
+uv venv gemma_flax
+. ./gemma_flax/bin/activate
+uv pip install jupyterlab jupytext
+```
+
 * Run jupyterlab notebook enviroment:
 ```bash
 jupytext --set-formats cache-notebooks//ipynb,py *.py
