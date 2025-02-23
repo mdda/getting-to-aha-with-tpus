@@ -15,7 +15,7 @@
 # ---
 
 # +
-### https://flax.readthedocs.io/en/latest/guides/gemma.html
+### https://gemma-llm.readthedocs.io/en/latest/colab_sampling.html#
 
 # +
 # # ! pip install -q git+https://github.com/google-deepmind/gemma.git
@@ -52,6 +52,7 @@ config.model.kaggle_id, config.model.weights_dir, config.model.ckpt_path
 #gm.ckpts.CheckpointPath.GEMMA2_2B_IT
 ## AttributeError: module 'orbax.checkpoint' has no attribute 'options' :: REINSTALLED EVERYTHING IN CLEAN venv
 # <CheckpointPath.GEMMA2_2B_IT: 'gs://gemma-data/checkpoints/gemma2-2b-it/'>
+# GEMMA2_2B_PT = Base model
 
 # +
 tokenizer = gm.text.Gemma2Tokenizer()

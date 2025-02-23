@@ -14,6 +14,8 @@
 #     name: python3
 # ---
 
+# ### https://flax.readthedocs.io/en/latest/guides/gemma.html
+
 # +
 import os
 
@@ -68,7 +70,8 @@ for phase in "nothing-new-required installations-performed".split(' '):
     # ?? cannot import name 'Key' from 'flax.typing' (/home/andrewsm/env311/lib/python3.11/site-packages/flax/typing.py)
   except Exception as e:
     print(type(e), e)
-    # ! uv pip install flax jaxtyping sentencepiece 
+    # ! uv pip install --no-deps -U flax
+    # ! uv pip install jaxtyping sentencepiece 
     # ! uv pip install kagglehub plotly treescope
 f"Installed with {phase}"
 
@@ -76,16 +79,21 @@ f"Installed with {phase}"
 from omegaconf import OmegaConf
 
 config = OmegaConf.load('./config.yaml')
+for extra in ['./config_secrets.yaml']:
+  if os.path.isfile(extra):
+    config = OmegaConf.merge(config, OmegaConf.load(extra))
+    
 config.model.GEMMA_VARIANT, config.model.kaggle_id, config.model.kaggle_dir, config.model.weights_dir
 
 # +
-## https://flax.readthedocs.io/en/latest/guides/gemma.html
 from IPython.display import clear_output  # Makes the kaggle download less disgusting
-import kagglehub
+## https://flax.readthedocs.io/en/latest/guides/gemma.html
 
 weights_dir = config.model.weights_dir
 if not os.path.isdir(weights_dir):   # Only prompt for download if there's nothing there...
-  #kagglehub.login()
+  os.environ['KAGGLE_USERNAME'] = config.kaggle.username
+  os.environ['KAGGLE_KEY'] = config.kaggle.key
+  import kagglehub
   os.makedirs(config.model.kaggle_dir, exist_ok=True)
   weights_dir = kagglehub.model_download(config.model.kaggle_id, path=config.model.kaggle_dir)
   assert weights_dir == config.model.weights_dir

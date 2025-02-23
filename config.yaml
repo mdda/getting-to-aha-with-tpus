@@ -6,7 +6,8 @@ model:
   #kaggle_id: "google/gemma/flax/${.GEMMA_VARIANT}"
   #weights_dir: "${.kaggle_dir}/google/gemma/flax/${.GEMMA_VARIANT}/2"
   
-  GEMMA_VARIANT: 'gemma2-2b' # @param ['gemma2-2b', 'gemma2-2b-it', 'gemma2-9b', 'gemma2-9b-it']
+  #GEMMA_VARIANT: 'gemma2-2b' # @param ['gemma2-2b', 'gemma2-2b-it', 'gemma2-9b', 'gemma2-9b-it']
+  GEMMA_VARIANT: 'gemma2-2b-it' # @param ['gemma2-2b', 'gemma2-2b-it', 'gemma2-9b', 'gemma2-9b-it']
   kaggle_id: "google/gemma-2/flax/${.GEMMA_VARIANT}"
   weights_dir: "${.kaggle_dir}/google/gemma-2/flax/${.GEMMA_VARIANT}/1"
   
