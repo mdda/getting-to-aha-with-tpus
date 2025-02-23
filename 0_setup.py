@@ -168,8 +168,63 @@ params['transformer']['layer_0']['post_attention_norm']['scale'] # .keys()
 #transformer = transformer_lib.Transformer.from_params(params)  # This is for v1 models
 transformer = transformer_lib.Transformer.from_params(params, config_gemma2_2b)
 
-#nnx.display(transformer)
+nnx.display(transformer)
+
+jnp.set_printoptions(precision=4, floatmode='fixed')
 transformer.final_norm.scale[0:200:20]  # This *proves* that the model has loaded the params
+
+for k in """
+embedder/input_embedding final_norm/scale 
+layer_0/attn/attn_vec_einsum/w layer_0/attn/kv_einsum/w layer_0/attn/q_einsum/w 
+layer_0/mlp/gating_einsum=layer_0/mlp/gate_proj/kernel/value
+layer_0/mlp/linear=layer_0/mlp/down_proj/kernel/value
+layer_0/post_attention_norm/scale=layer_0/post_attn_norm/scale
+layer_0/post_ffw_norm/scale
+layer_0/pre_attention_norm/scale
+layer_0/pre_ffw_norm/scale
+""".strip().split():
+  if k.startswith('#'):
+    print(f"{k:>60s} : SKIPPED")  
+    continue
+  if '=' in k:
+    k=k.split('=')[-1]
+    #print(k)
+  o = transformer
+  for a in k.split('/'):
+    if 'layer_0' in a:
+      o = getattr(o, 'layers')[0]
+    else:
+      o = getattr(o, a)
+  v = jnp.ravel(o)[:5]
+  print(f"{k:>60s} : {v}") 
+
+# ```
+#                                     embedder/input_embedding : [0.0341797 -0.0319824 0.0732422 0.0035553 0.0756836]
+#                                             final_norm/scale : [2.32812 2.35938 2.28125 2.23438 2.09375]
+#                               layer_0/attn/attn_vec_einsum/w : [0.00872803 0.010376 0.0148315 0.010437 0.00340271]
+#                                     layer_0/attn/kv_einsum/w : [-0.00482178 -0.00386047 0.0067749 0.00276184 0.00970459]
+#                                      layer_0/attn/q_einsum/w : [-0.00778198 -0.00164032 0.00228882 0.00393677 -0.00421143]
+#                                    layer_0/mlp/gating_einsum : [0.00265503 -0.00387573 -0.00891113 -0.00772095 0.00415039]
+#                                           layer_0/mlp/linear : [-0.00075531 0.00762939 0.013916 0.00340271 -0.00340271]
+#                            layer_0/post_attention_norm/scale : [-0.527344 -0.515625 -0.490234 -0.527344 -0.597656]
+#                                  layer_0/post_ffw_norm/scale : [-0.227539 -0.188477 -0.193359 -0.21875 -0.194336]
+#                             layer_0/pre_attention_norm/scale : [0.116699 0.135742 0.191406 0.185547 0.155273]
+# ```
+
+# ```
+# # Notes : 
+# #  layer_0/mlp/linear=layer_0/mlp/down_proj/kernel/value = confirmed
+# #  layer_0/mlp/gating_einsum=layer_0/mlp/gate_proj/kernel/value :
+# #    the gating matrix is 'double size' in deepmind gemma2 implementation, but separate in flax.nnx
+# #      https://github.com/google-deepmind/gemma/blob/main/gemma/modules.py#L266
+# #      https://github.com/google/flax/blob/main/examples/gemma/modules.py#L258
+# #  Dealt with in transformer.py:
+# #      if 'gate_proj' in mapped_path:
+# #        state[mapped_path].value = val[0]
+# #        state[mapped_path[:-2] + ('up_proj', 'kernel')].value = val[1]  if 'gate_proj' in mapped_path:
+# #        state[mapped_path].value = val[0]
+# #        state[mapped_path[:-2] + ('up_proj', 'kernel')].value = val[1]
+# ```
 
 # ### Let's run a prompt through the transformer to get the logits
 
@@ -190,6 +245,7 @@ input_mask, positions, attn_mask
 
 logits, _ = transformer(prompt, positions, cache=None, attention_mask=attn_mask)
 logits.shape, logits # Seems to be a full list of logits for the input
+# Sadly, they do not match the 'correct outputs' from flax_gemma _AT ALL_
 
 for tok_logits in logits[0]: # Look at each token
   token_next = jnp.argmax(tok_logits)

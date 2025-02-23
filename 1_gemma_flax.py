@@ -84,7 +84,15 @@ params = peft.merge_params(original, lora)
 # -
 
 #treescope.show(params)
+jnp.set_printoptions(precision=4, floatmode='fixed')
 params['final_norm']['scale'][0:200:20]
+
+import flax
+params_flat = flax.traverse_util.flatten_dict(params, sep='/')
+for k in sorted(params_flat.keys()):
+  if 'lora' in k: continue
+  v = jnp.ravel(params_flat[k])[:5]
+  print(f"{k:>60s} : {v}")  
 
 # ### Have a look at a single token sample...
 
@@ -99,18 +107,22 @@ prompt = jnp.asarray(prompt)
 out = model.apply(
   {'params': params},
   tokens=prompt,
-  return_last_only=True,  # Only return the last layer outputs
+  #return_last_only=True,  # Only return the last token outputs
 )
+# -
+
+out.logits  # These are the 'correct outputs'
 
 # Sample a token from the predicted logits
 next_token = jax.random.categorical(
   jax.random.key(11),
-  out.logits
+  out.logits[-1]
 )
 tokenizer.decode(next_token)
-# -
 
-tokenizer.plot_logits(out.logits)
+tokenizer.plot_logits(out.logits[-1])
+
+# ### Now let's try sampling some responses...
 
 # https://gemma-llm.readthedocs.io/en/latest/api/gm/text/Sampler.html
 # Greedy decoding is built-in : https://github.com/google-deepmind/gemma/blob/main/gemma/sampler.py#L170
