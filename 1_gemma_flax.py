@@ -83,7 +83,12 @@ original = gm.ckpts.load_params(os.path.abspath(config.model.ckpt_path), params=
 params = peft.merge_params(original, lora)
 # -
 
-prompt_txt = 'The capital of France, '
+#treescope.show(params)
+params['final_norm']['scale'][0:200:20]
+
+# ### Have a look at a single token sample...
+
+prompt_txt = 'The capital of France,'
 
 # +
 # Encode the prompt

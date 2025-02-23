@@ -28,8 +28,6 @@ import os
 # %load_ext autoreload
 # %autoreload 2
 
-
-
 # +
 import subprocess
 
@@ -170,7 +168,8 @@ params['transformer']['layer_0']['post_attention_norm']['scale'] # .keys()
 #transformer = transformer_lib.Transformer.from_params(params)  # This is for v1 models
 transformer = transformer_lib.Transformer.from_params(params, config_gemma2_2b)
 
-nnx.display(transformer)
+#nnx.display(transformer)
+transformer.final_norm.scale[0:200:20]  # This *proves* that the model has loaded the params
 
 # ### Let's run a prompt through the transformer to get the logits
 
@@ -187,17 +186,9 @@ input_mask = jnp.ones( prompt_len, dtype=jnp.bool)[None, :] # Allow all tokens
 positions  = transformer_lib.build_positions_from_mask(input_mask)
 attn_mask  = transformer_lib.make_causal_attn_mask(input_mask)
 input_mask, positions, attn_mask
-
-# +
-#decoding_step = jnp.asarray([prompt_len], dtype=jnp.uint32)
-#decoding_step = [prompt_len]
-#decoding_step = 0
-#decoding_step =jnp.arange(prompt_len, dtype=jnp.int32)
-#attention_mask = sampler_lib._compute_attention_masks(decoding_step, prompt_len, input_mask)
-#attention_mask
 # -
 
-logits, _ = transformer(prompt, positions, cache=None, attention_mask=attention_mask)
+logits, _ = transformer(prompt, positions, cache=None, attention_mask=attn_mask)
 logits.shape, logits # Seems to be a full list of logits for the input
 
 for tok_logits in logits[0]: # Look at each token
