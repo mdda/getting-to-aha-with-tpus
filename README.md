@@ -483,7 +483,7 @@ uv pip install jupyterlab jupytext OmegaConf
 
 * Run jupyterlab notebook enviroment:
 ```bash
-jupytext --set-formats cache-notebooks//ipynb,py *.py
+jupytext --set-formats cache-notebooks//ipynb,py:light *.py
 #...
 jupyter-lab --port 8282 --no-browser
 ```
@@ -494,3 +494,4 @@ pushd ./aha_dataset/countdown/
 python generator.py 
 popd
 ```
+
