@@ -53,9 +53,7 @@ config.model.kaggle_id, config.model.weights_dir, config.model.ckpt_path
 ## AttributeError: module 'orbax.checkpoint' has no attribute 'options' :: REINSTALLED EVERYTHING IN CLEAN venv
 # <CheckpointPath.GEMMA2_2B_IT: 'gs://gemma-data/checkpoints/gemma2-2b-it/'>
 # GEMMA2_2B_PT = Base model
-
-# +
-tokenizer = gm.text.Gemma2Tokenizer()
+# -
 
 model = gm.nn.LoRAWrapper(
   rank=4,
@@ -92,10 +90,14 @@ import flax
 params_flat = flax.traverse_util.flatten_dict(params, sep='/')
 for k in sorted(params_flat.keys()):
   if 'lora' in k: continue
+  if 'layer_1' in k: break
   v = jnp.ravel(params_flat[k])[:5]
   print(f"{k:>60s} : {v}")  
 
 # ### Have a look at a single token sample...
+
+# +
+tokenizer = gm.text.Gemma2Tokenizer()
 
 prompt_txt = 'The capital of France,'
 
@@ -146,5 +148,19 @@ sampler.sample([prompt_txt, prompt_txt], max_new_tokens=30)
 # * Sampler is purely greedy : 
 #   + https://github.com/google-deepmind/gemma/blob/main/gemma/sampler.py#L170
 # * No sharding in Sampler (it's a TODO)
+
+# ### Testing
+# On Colab, add debug to:
+# * `/usr/local/lib/python3.11/dist-packages/gemma/transformer.py`
+#   + Line 317 : `jax.debug.print("embedder {v}", v=jnp.ravel(x)[:10],)`
+# * `/usr/local/lib/python3.11/dist-packages/gemma/gm/nn/_transformer.py`
+#   + Top : `import jax`
+#   + Line 141 : `jax.debug.print("embedder {v}", v=jnp.ravel(x)[:10],)`
+# * Then to :
+#   + modules.Block (break after layer_0)
+#   + layers.RMSNorm
+# * JUST A MINUTE!
+#   + Order of operations in Block is completely wrong...
+#   + Fixing it gets us back to normality!
 
 

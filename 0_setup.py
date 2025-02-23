@@ -94,11 +94,17 @@ if not os.path.isdir(weights_dir):   # Only prompt for download if there's nothi
   os.environ['KAGGLE_USERNAME'] = config.kaggle.username
   os.environ['KAGGLE_KEY'] = config.kaggle.key
   import kagglehub
-  os.makedirs(config.model.kaggle_dir, exist_ok=True)
-  weights_dir = kagglehub.model_download(config.model.kaggle_id, path=config.model.kaggle_dir)
-  assert weights_dir == config.model.weights_dir
+  kagglehub.whoami()
+  weights_dir = kagglehub.model_download(config.model.kaggle_id)
+  print(f"Kaggle downloaded to {weights_dir}")  # Does this have a version number?
+  # Now move the weights into the right place
+  weights_dir = f"{config.model.kaggle_dir}/{config.model.kaggle_id}"
+  os.makedirs(weights_dir, exist_ok=True)
+  # ! mv ~/.cache/kagglehub/models/{config.model.kaggle_id}/* {weights_dir}/
+  weights_dir = config.model.weights_dir
+  #assert weights_dir == config.model.weights_dir
 #weights_dir  # '/home/andrewsm/.cache/kagglehub/models/google/gemma-2/flax/gemma2-2b/1'
-# ! ls -l {weights_dir}
+# ! echo {weights_dir} && ls -l {weights_dir}
 # -
 
 # ## Get Gemma Library (converted to NNX by Google)
@@ -172,7 +178,9 @@ params['transformer']['layer_0']['post_attention_norm']['scale'] # .keys()
 #transformer = transformer_lib.Transformer.from_params(params)  # This is for v1 models
 transformer = transformer_lib.Transformer.from_params(params, config_gemma2_2b)
 
-nnx.display(transformer)
+# +
+#nnx.display(transformer)
+# -
 
 jnp.set_printoptions(precision=4, floatmode='fixed')
 transformer.final_norm.scale[0:200:20]  # This *proves* that the model has loaded the params
@@ -202,17 +210,18 @@ layer_0/pre_ffw_norm/scale
   v = jnp.ravel(o)[:5]
   print(f"{k:>60s} : {v}") 
 
-# ```
-#                                     embedder/input_embedding : [0.0341797 -0.0319824 0.0732422 0.0035553 0.0756836]
-#                                             final_norm/scale : [2.32812 2.35938 2.28125 2.23438 2.09375]
-#                               layer_0/attn/attn_vec_einsum/w : [0.00872803 0.010376 0.0148315 0.010437 0.00340271]
-#                                     layer_0/attn/kv_einsum/w : [-0.00482178 -0.00386047 0.0067749 0.00276184 0.00970459]
-#                                      layer_0/attn/q_einsum/w : [-0.00778198 -0.00164032 0.00228882 0.00393677 -0.00421143]
-#                                    layer_0/mlp/gating_einsum : [0.00265503 -0.00387573 -0.00891113 -0.00772095 0.00415039]
-#                                           layer_0/mlp/linear : [-0.00075531 0.00762939 0.013916 0.00340271 -0.00340271]
-#                            layer_0/post_attention_norm/scale : [-0.527344 -0.515625 -0.490234 -0.527344 -0.597656]
-#                                  layer_0/post_ffw_norm/scale : [-0.227539 -0.188477 -0.193359 -0.21875 -0.194336]
-#                             layer_0/pre_attention_norm/scale : [0.116699 0.135742 0.191406 0.185547 0.155273]
+# ``` 2b-it
+#                                     embedder/input_embedding : [0.0351562 -0.0229492 0.081543 -0.0019455 0.0786133]
+#                                             final_norm/scale : [2.32812 2.34375 2.28125 2.23438 2.07812]
+#                               layer_0/attn/attn_vec_einsum/w : [0.0090332 0.0100708 0.0155029 0.0114136 0.00349426]
+#                                     layer_0/attn/kv_einsum/w : [-0.0055542 -0.00469971 0.00686646 0.00354004 0.00970459]
+#                                      layer_0/attn/q_einsum/w : [-0.00701904 -0.00222778 0.00172424 0.00372314 -0.00460815]
+#                                    layer_0/mlp/gating_einsum : [0.0027771 -0.00335693 -0.00897217 -0.00811768 0.00405884]
+#                                           layer_0/mlp/linear : [-0.000249863 0.00778198 0.0151978 0.00415039 -0.00415039]
+#                            layer_0/post_attention_norm/scale : [-0.53125 -0.515625 -0.490234 -0.527344 -0.601562]
+#                                  layer_0/post_ffw_norm/scale : [-0.229492 -0.189453 -0.194336 -0.220703 -0.196289]
+#                             layer_0/pre_attention_norm/scale : [0.116699 0.134766 0.192383 0.185547 0.155273]
+#                                   layer_0/pre_ffw_norm/scale : [0.227539 0.208008 0.208008 0.202148 0.135742]
 # ```
 
 # ```
@@ -255,8 +264,15 @@ logits.shape, logits # Seems to be a full list of logits for the input
 # Sadly, they do not match the 'correct outputs' from flax_gemma _AT ALL_
 
 for tok_logits in logits[0]: # Look at each token
-  token_next = jnp.argmax(tok_logits)
+  token_next = jnp.argmax(tok_logits)  # This is greedy
   print(f"{tok_logits.shape=} {token_next:6d} -> {vocab.id_to_piece(int(token_next))}")  
+
+# Sample a token from the predicted logits
+next_token = jax.random.categorical(
+  jax.random.key(11),
+  logits[0][-1]
+)
+vocab.id_to_piece(int(next_token))
 
 # ### Now let's try and sample some output
 
