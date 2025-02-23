@@ -23,7 +23,7 @@
 # Actually needed to specify these (latest) versions to kill looping resolution (on GCP VM)
 # #! pip install gemma tensorflow[and-cuda] 'tfds-nightly==4.9.7.dev202502220044' 'google_cloud_resource_manager==1.14.1' 'grpcio_status==1.70.0'
 
-# Started with bare venv
+# Started with bare venv = '~/flax_gemma/'
 # ! uv pip install gemma "jax[cuda12]" # "tensorflow[with-cuda]" 
 # ! uv pip install plotly treescope
 "DONE"
@@ -57,16 +57,16 @@ config.model.kaggle_id, config.model.weights_dir, config.model.ckpt_path
 tokenizer = gm.text.Gemma2Tokenizer()
 
 model = gm.nn.LoRAWrapper(
-    rank=4,
-    model=gm.nn.Gemma2_2B(tokens="batch.input"),
+  rank=4,
+  model=gm.nn.Gemma2_2B(tokens="batch.input"),
 )
 
 # +
 token_ids = jnp.zeros((1, 256,), dtype=jnp.int32)  # Create the (batch_size, seq_length)
 
 params = model.init(
-    jax.random.key(0),    # This randomises everything - but we'll load in on top soon enough...
-    token_ids,
+  jax.random.key(0),    # This randomises everything - but we'll load in on top soon enough...
+  token_ids,
 )
 
 params = params['params']  

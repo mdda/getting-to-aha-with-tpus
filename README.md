@@ -476,9 +476,9 @@
 
 ```bash
 sudo snap install astral-uv --classic
-uv venv gemma_flax
-. ./gemma_flax/bin/activate
-uv pip install jupyterlab jupytext
+uv venv flax_nnx
+. ./flax_nnx/bin/activate
+uv pip install jupyterlab jupytext OmegaConf
 ```
 
 * Run jupyterlab notebook enviroment:
