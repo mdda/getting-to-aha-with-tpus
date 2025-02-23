@@ -14,4 +14,5 @@ model:
   vocab_path: "${.weights_dir}/tokenizer.model"
 
 nnx:
-  tmp_dir: './tmp_gemma_nnx'
+  #repo_dir:  './tmp_gemma_nnx'  
+  repo_dir: './gemma_nnx_fork'

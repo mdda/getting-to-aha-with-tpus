@@ -98,14 +98,21 @@ if not os.path.isdir(weights_dir):   # Only prompt for download if there's nothi
 # * Code trickery from : https://flax.readthedocs.io/en/latest/guides/gemma.html
 
 import sys
-tmp_gemma_nnx_dir = config.nnx.tmp_dir
-if not os.path.isdir(tmp_gemma_nnx_dir):
-  os.makedirs(tmp_gemma_nnx_dir, exist_ok=True)
-  # clone the `flax` repo into 'tmp_gemma_nnx_dir'
-  # Then, append the `examples/gemma` folder to the path for loading the `gemma` modules.
-  # ! git clone https://github.com/google/flax.git {tmp_gemma_nnx_dir}/flax
+#repo_gemma_nnx_dir = config.nnx.repo_dir
+#if not os.path.isdir(repo_gemma_nnx_dir):
+#  os.makedirs(repo_gemma_nnx_dir, exist_ok=True)
+#  # clone the `flax` repo into 'repo_gemma_nnx_dir'
+#  # Then, append the `examples/gemma` folder to the path for loading the `gemma` modules.
+# #  ! git clone https://github.com/google/flax.git {repo_gemma_nnx_dir}/flax
 
-sys.path.append(f"{config.nnx.tmp_dir}/flax/examples/gemma")
+repo_gemma_nnx_dir = config.nnx.repo_dir
+if not os.path.isdir(repo_gemma_nnx_dir):
+  os.makedirs(repo_gemma_nnx_dir, exist_ok=True)
+  # clone the `flax` fork into 'repo_gemma_nnx_dir'
+  # Then, append the `examples/gemma` folder to the path for loading the `gemma` modules.
+  # ! git clone -b gemma2-2b https://github.com/mdda/flax.git {repo_gemma_nnx_dir}/flax
+
+sys.path.append(f"{config.nnx.repo_dir}/flax/examples/gemma")
 import params as params_lib
 import sampler as sampler_lib
 import transformer as transformer_lib
@@ -121,46 +128,35 @@ metadata = params_lib.load_metadata( abs_path )
 #metadata['somewhere in orbax checkpoint']  # This was used to detect other v2 models...
 
 # +
-#params=None  # Try and reclaim CPU memory - seems to acheive no RAM reduction
-#metadata=None
-# -
-
-vocab = spm.SentencePieceProcessor()
-vocab.Load(config.model.vocab_path);
-
-# +
-### Test : Can jax store a bfloat16? : YES
-#import jax.numpy as jnp
-#a = jnp.bfloat16(3)
-#a
-# -
-
 # Copied from             : https://github.com/google-deepmind/gemma/blob/main/gemma/transformer.py#L168
 #   and modified to match : https://github.com/google/flax/blob/main/examples/gemma/transformer.py#L154
-num_layers = _NUM_LAYERS_GEMMA2_2B = 26
-#cache_size = None
-config_gemma2_2b = transformer_lib.TransformerConfig(
-        num_layers=num_layers, # _NUM_LAYERS_GEMMA2_2B,
-        num_embed=256128,
-        embed_dim=2304,
-        hidden_dim=9216,
-        num_heads=8,
-        head_dim=256,
-        num_kv_heads=4,
-        final_logit_softcap=30.0,
-        attention_types=(
-            transformer_lib.modules.AttentionType.LOCAL_SLIDING,
-            transformer_lib.modules.AttentionType.GLOBAL,
-        )
-        #* int(_NUM_LAYERS_GEMMA2_2B / 2),
-        * int(num_layers / 2),
-        use_post_attn_norm=True,
-        use_post_ffw_norm=True,
-        #max_cache_length=cache_size,
-        #query_pre_attn_norm=transformer_lib.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
-        attn_logits_soft_cap=50.0,
-        sliding_window_size=4096,
-    )
+#num_layers = _NUM_LAYERS_GEMMA2_2B = 26
+##cache_size = None
+#config_gemma2_2b = transformer_lib.TransformerConfig(
+#        num_layers=num_layers, # _NUM_LAYERS_GEMMA2_2B,
+#        num_embed=256128,
+#        embed_dim=2304,
+#        hidden_dim=9216,
+#        num_heads=8,
+#        head_dim=256,
+#        num_kv_heads=4,
+#        final_logit_softcap=30.0,
+#        attention_types=(
+#            transformer_lib.modules.AttentionType.LOCAL_SLIDING,
+#            transformer_lib.modules.AttentionType.GLOBAL,
+#        )
+#        #* int(_NUM_LAYERS_GEMMA2_2B / 2),
+#        * int(num_layers / 2),
+#        use_post_attn_norm=True,
+#        use_post_ffw_norm=True,
+#        #max_cache_length=cache_size,
+#        #query_pre_attn_norm=transformer_lib.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
+#        attn_logits_soft_cap=50.0,
+#        sliding_window_size=4096,
+#    )
+# -
+
+config_gemma2_2b = transformer_lib.TransformerConfig.gemma2_2b()
 config_gemma2_2b
 
 params['transformer']['layer_0']['post_attention_norm']['scale'] # .keys()
@@ -227,6 +223,9 @@ layer_0/pre_ffw_norm/scale
 # ```
 
 # ### Let's run a prompt through the transformer to get the logits
+
+vocab = spm.SentencePieceProcessor()
+vocab.Load(config.model.vocab_path);
 
 prompt_txt = 'The capital of France,'
 
