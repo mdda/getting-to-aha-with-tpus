@@ -58,8 +58,8 @@ def generate_puzzle(seed=None, target_min=100, target_max=999, as_structure=Fals
       expression='('*(len(expression_arr)-1) + ''.join(expression_arr)
       if as_structure:
         return dict(
-          question=' '.join(str(n) for n in sorted(numbers)),
-          answer=str(target),
+          numbers=' '.join(str(n) for n in sorted(numbers)),
+          target=str(target),
           proof=expression
         )
       else:        
