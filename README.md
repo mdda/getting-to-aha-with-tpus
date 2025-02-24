@@ -236,18 +236,15 @@
       + Commenter had success with beta=0.01
       + https://huggingface.co/docs/trl/main/en/grpo_trainer#trl.GRPOConfig.beta
   + (updated code, running smooth now on Qwen-1.5B w/ longer max_completion_length + higher num_generations)
-  + This used by [@anton](https://x.com/abacaj/status/1884361852349825444)
-    - [Qwen2.5-0.5B (base model) directly goes into step by step breakdown with zero prompting](https://x.com/abacaj/status/1888826994248323354) (and Llama doesn't produce step-wise thinking of its own accord)
-    - [when reward starts going up at step &gt;100 it's either hacking it or discovered something](https://x.com/abacaj/status/1889739663855743472)
   + "TRL GRPO has vLLM now btw + it's soooo much faster wow"
   + [Next version (?) uses TRL_GRPOTrainer](https://x.com/willccbb/status/1886243810323148890)
   + [Colab version with Qwen 0.5B](https://colab.research.google.com/drive/1bfhs1FMLW3FGa8ydvkOZyBNxLYOu0Hev?usp=sharing)
     - Runs `vLLM` on Colab GPU too
-
-* [Full GRPO fine-tuning Qwen2.5 0.5B on a single T4](https://gist.github.com/qunash/820c86d1d267ec8051d9f68b4f4bb656)
-  + @qunash on GitHub = https://huggingface.co/anzorq 
-  + `Qwen2.5-0.5B-Instruct` gsm8k eval result from 22.4% to 48.6% 
-    - in just ~150 steps (~30 minutes) on a single T4 GPU
+    - Decent looking code, but Aha is not directly visible...
+  + This used by [@anton](https://x.com/abacaj/status/1884361852349825444)
+    - [Qwen2.5-0.5B (base model) directly goes into step by step breakdown with zero prompting](https://x.com/abacaj/status/1888826994248323354) (and Llama doesn't produce step-wise thinking of its own accord)
+    - [when reward starts going up at step &gt;100 it's either hacking it or discovered something](https://x.com/abacaj/status/1889739663855743472)
+    - See below...
 
 * @anton experiments
   + ["Perfect Reward Function"](https://x.com/abacaj/status/1884787697408999619)
@@ -257,7 +254,16 @@
       * try lower beta (KL coefficient). 
     - 3 rewards: int reward, final_answer tags, and correctness reward
     - has commented on original `willccbb/grpo_demo.py` gist
+      + Has own gist of [GRPOTrainer to run gsm8k eval during training](https://gist.github.com/abacaj/9a567910c1a8663f7aa04520075e0ba8)
   + ["Got a better result on qwen2.5-0.5b (base) &rarr; 56% gsm8k"](https://x.com/abacaj/status/1886308242814320834)
+
+
+* [Full GRPO fine-tuning Qwen2.5 0.5B on a single T4](https://gist.github.com/qunash/820c86d1d267ec8051d9f68b4f4bb656)
+  + @qunash on GitHub = https://huggingface.co/anzorq 
+  + Fork of the TRL repo by [GitHub @andyl98](https://github.com/andyl98) - with more optimisations
+  + `Qwen2.5-0.5B-Instruct` gsm8k eval result from 22.4% to 48.6% 
+    - in just ~150 steps (~30 minutes) on a single T4 GPU
+
 
 * [Train your own R1 reasoning model with Unsloth](https://unsloth.ai/blog/r1-reasoning)
   + [Daniel Han (unsloth) thread](https://x.com/danielhanchen/status/1887564724071768529)
@@ -274,6 +280,7 @@
     - GRPO now with LoRA and QLoRA
     - Qwen2.5(1.5B) can be trained with just 7GB!
     - Llama3.1(8B) training with 15GB
+
 
 * SimpleRL : [7B Model and 8K MATH Examples: Emerging Reasoning with Reinforcement Learning is Both Effective and Efficient](https://hkust-nlp.notion.site/simplerl-reason)
   + Weihao Zeng, Yuzhen Huang, Wei Liu, Keqing He, Qian Liu, Zejun Ma, Junxian He=@junxian_he
@@ -373,6 +380,10 @@
   + Has a `use_vllm=True` parameter to do generations using `vllm`
   + ["just a reminder : trl grpo is not same as same as described in deepseek paper"](https://x.com/shxf0072/status/1886390053104242983)
     - No clipping objective (though does have KL term) (may not be important at all)
+      + Maybe [KL term not needed with verifiable rewards](https://x.com/shxf0072/status/1892687698261139566)
+    - Also "Joey (e/λ)" has [comments about gradient / loss and removing constants](https://x.com/shxf0072/status/1892668791303373042)...  
+      + Claim : "loss =  advantage*log_softmax(logits) works, same gradients"
+      + (Not clear whether sane or not)
 * [OpenRLHF](https://github.com/OpenRLHF/OpenRLHF)
   + High-performance RLHF framework built on Ray, DeepSpeed and HF Transformers
 * [veRL](https://github.com/volcengine/verl)
