@@ -130,4 +130,15 @@ print('\n---\n'.join('\n'.join(textwrap.wrap(t, width=120)) for t in txt.splitli
 
 len("John removes 6 pink hard hats, which is ( 4 times 2 = 8 ) green hard hats. Thus, the remaining hard hat counts are:")
 
+#import sys
+#sys.path.append(f"./getting-to-aha-with-tpus")
+import aha_dataset.countdown
+#sys.path.pop();
+
+aha_dataset.countdown.generator.generate_puzzle(seed=1)
+
+aha_dataset.countdown.generator.generate_puzzle(as_structure=True)
+
+
+
 

@@ -408,7 +408,7 @@ popd
       + Maybe [KL term not needed with verifiable rewards](https://x.com/shxf0072/status/1892687698261139566)
     - Also "Joey (e/λ)" has [comments about gradient / loss and removing constants](https://x.com/shxf0072/status/1892668791303373042)...  
       + Claim : "loss =  advantage*log_softmax(logits) works, same gradients"
-      + (Not clear whether sane or not)
+      + (Makes sense at first glance, but not clear whether there's something else going on)
 * [OpenRLHF](https://github.com/OpenRLHF/OpenRLHF)
   + High-performance RLHF framework built on Ray, DeepSpeed and HF Transformers
 * [veRL](https://github.com/volcengine/verl)

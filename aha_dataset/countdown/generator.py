@@ -43,12 +43,12 @@ def random_expression(numbers):
 #      break # Ensure diversity of operations and near full usage
 
   if len(used_ops)==0 or len(used_numbers)<len(numbers)*.8:
-    expression_arr=[]] # Ensure diversity of operations and near full usage (invalidate otherwise)
+    expression_arr=[] # Ensure diversity of operations and near full usage (invalidate otherwise)
   
   return expression_arr, value
 
-def generate_puzzle(seed=None, target_min=100, target_max=999):
-  if seed: 
+def generate_puzzle(seed=None, target_min=100, target_max=999, as_structure=False):
+  if seed is not None: 
     random.seed(seed)
   while True: # We'll definitely (!) find one eventually
     numbers = generate_numbers()
@@ -56,8 +56,14 @@ def generate_puzzle(seed=None, target_min=100, target_max=999):
     #print(sorted(numbers), target, expression_arr)
     if target_min<=target<=target_max and len(expression_arr)>0: # result within bounds, and expression_arr valid
       expression='('*(len(expression_arr)-1) + ''.join(expression_arr)
-      return sorted(numbers), target, expression
-
+      if as_structure:
+        return dict(
+          question=' '.join(str(n) for n in sorted(numbers)),
+          answer=str(target),
+          proof=expression
+        )
+      else:        
+        return sorted(numbers), target, expression
 
 if __name__ == "__main__":
   numbers, target, expression = generate_puzzle()
