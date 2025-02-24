@@ -119,6 +119,15 @@ optimizer
 import aha_dataset.countdown
 
 aha_dataset.countdown.generate_puzzle()
+# +
+import textwrap
+
+txt="This is very long "*8 + "\n" + "And this is the second line "*10 
+
+print('\n---\n'.join('\n'.join(textwrap.wrap(t, width=120)) for t in txt.splitlines() ))
 # -
+
+
+len("John removes 6 pink hard hats, which is ( 4 times 2 = 8 ) green hard hats. Thus, the remaining hard hat counts are:")
 
 

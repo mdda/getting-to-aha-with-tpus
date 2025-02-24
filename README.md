@@ -2,9 +2,9 @@
 ## With TPU(s) using JAX `nnx`
 
 * Reasoning-from-Zero : JAX on TPU
-  + Following the release of DeepSeek's R1 model, there was a nice follow-up from a group at Berkeley with a 'Countdown task reasoner' that can be trained from scratch for "$30 of H100s" (https://github.com/Jiayi-Pan/TinyZero).  
-  + This project is to replicate that same task, but using JAX/TPU infrastructure (hopefully with Gemma as the base model).  
-  + This will make it far, far more likely that TPUs could become an experimentation platform for the curious : The current barriers to entry are very high.
+  + Following the release of DeepSeek's R1 model, there was a nice follow-up from a group at Berkeley with a 'Countdown task reasoner' that can be trained from scratch for "$30 of H100s" (https://github.com/Jiayi-Pan/TinyZero)
+  + This project is to replicate that same task, but using JAX/TPU infrastructure (hopefully with a Gemma2 base model)
+  + This will make it far, far more likely that TPUs could become an experimentation platform for the curious : The current barriers to entry are very high
 
 
 ## The Plan
@@ -16,15 +16,32 @@
   + RL objective : GRPO
 * Goal : Get to "Aha!" using \$free TPU resources
 
+--- 
 
+## Installation / Running the code
 
-## R1 Notes
+```bash
+sudo snap install astral-uv --classic
+uv venv flax_nnx
+. ./flax_nnx/bin/activate
+uv pip install jupyterlab jupytext OmegaConf
+```
 
-* https://x.com/Guodaya/status/1886635010251518330 (now deleted)
-  + =Researcher at DeepSeek 
-  + The 660B R1-Zero and R1 began running after the release of V3, with training taking approximately 2-3 weeks
-  + The R1 model prior to this time (e.g., in the V3 tech report) was the R1-Lite or the R1-Lite-Zero
+* Run jupyterlab notebook enviroment:
+```bash
+jupytext --set-formats cache-notebooks//ipynb,py:light *.py
+#...
+jupyter-lab --port 8282 --no-browser
+```
 
+* Test the countdown puzzle generation:
+```bash
+pushd ./aha_dataset/countdown/
+python generator.py 
+popd
+```
+
+---
 
 ## JAX Resources
 
@@ -198,9 +215,17 @@
   + Describes (in detail) how to run `gencast_demo_cloud_vm.ipynb` through Colaboratory using Google Cloud compute
   + == Weather models
 
-
+---
 
 ## RL-related Resources
+
+
+### R1 Notes
+
+* https://x.com/Guodaya/status/1886635010251518330 (now deleted)
+  + =Researcher at DeepSeek 
+  + The 660B R1-Zero and R1 began running after the release of V3, with training taking approximately 2-3 weeks
+  + The R1 model prior to this time (e.g., in the V3 tech report) was the R1-Lite or the R1-Lite-Zero
 
 ### Post-R1 GRPO demos
 
@@ -389,6 +414,7 @@
 * [veRL](https://github.com/volcengine/verl)
   + Volcano Engine Reinforcement Learning for LLM
 
+
 ### Miscellaneous
 
 * [GRPO VRAM Requirements For the GPU Poor](https://www.oxen.ai/blog/grpo-vram-requirements-for-the-gpu-poor)
@@ -402,6 +428,7 @@
   + 2022-03-25
 
 
+---
 
 ## Potential next ideas
 
@@ -480,29 +507,4 @@
 <!--
 ### Cryptic Crosswords
 !-->
-
-
-
-## Running
-
-```bash
-sudo snap install astral-uv --classic
-uv venv flax_nnx
-. ./flax_nnx/bin/activate
-uv pip install jupyterlab jupytext OmegaConf
-```
-
-* Run jupyterlab notebook enviroment:
-```bash
-jupytext --set-formats cache-notebooks//ipynb,py:light *.py
-#...
-jupyter-lab --port 8282 --no-browser
-```
-
-* Test the countdown puzzle generation:
-```bash
-pushd ./aha_dataset/countdown/
-python generator.py 
-popd
-```
 
