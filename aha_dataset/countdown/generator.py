@@ -12,21 +12,15 @@ def generate_numbers(n_small=4, n_large=2):
 
   return chosen
 
-def random_expression(numbers):
-  """Builds a random valid arithmetic expression using multiple operations."""
-  ops = [operator.add, operator.sub, operator.mul, operator.floordiv]
+def random_expression_stack(numbers, leave_out_frac_max=.2):
+  """Builds a random valid arithmetic expression using multiple operations, from left only."""
   op_symbols = {operator.add: '+', operator.sub: '-', operator.mul: '*', operator.floordiv: '/'}
+  ops, used_ops = list(op_symbols.keys()), set()
   
   random.shuffle(numbers)
-
-  used_ops = set()
-  
   n0 = numbers[0]
   value, expression_arr, used_numbers = n0, [str(n0)], {n0}
   for num in numbers[1:]:
-    #available_ops = [op for op in ops 
-    #          if op not in used_ops or len(used_ops)<len(ops)]
-    #op = random.choice(available_ops)
     op = random.choice(ops)
     
     if op == operator.floordiv and (num == 0 or value % num != 0):
@@ -39,28 +33,55 @@ def random_expression(numbers):
     used_ops.add(op)
     used_numbers.add(num)
     
-#    if len(used_ops)==len(ops) and len(used_numbers)>=len(numbers)-1:
-#      break # Ensure diversity of operations and near full usage
+  expression='('*(len(expression_arr)-1) + ''.join(expression_arr)
+  if len(used_ops)==0 or len(used_numbers)<len(numbers)*(1-leave_out_frac_max):
+    expression=None # Ensure diversity of operations and near full usage (invalidate otherwise)
+  return expression, value
 
-  if len(used_ops)==0 or len(used_numbers)<len(numbers)*.8:
-    expression_arr=[] # Ensure diversity of operations and near full usage (invalidate otherwise)
+def random_expression_tree(numbers, leave_out_frac_max=.2):
+  """Builds a random valid arithmetic expression using multiple operations, in a tree (potentially more expressive)"""
+  op_symbols = {operator.add: '+', operator.sub: '-', operator.mul: '*', operator.floordiv: '/'}
+  ops = list(op_symbols.keys())
   
-  return expression_arr, value
+  random.shuffle(numbers)
+  pairs = [ (n, str(n)) for n in numbers ] # Structure for the numbers
+  leave_out = int( random.random()*leave_out_frac_max*len(pairs) )
+  pairs = pairs[leave_out:]  # Skip the first few, if randomly decided
+  
+  while len(pairs)>1:
+    i = random.randint(0, len(pairs)-2)  # This addresses pair[i] and pair[i+1] - randint(a,b) = [a..b] inclusive
+    v0, v1 = pairs[i][0], pairs[i+1][0]
+    e0, e1 = pairs[i][1], pairs[i+1][1]
+    op = random.choice(ops)
+    #print(f"{pairs}@{i} : ({e0}={v0}) {op_symbols[op]} ({v1}={e1})")
+    
+    if op == operator.floordiv and (v1 == 0 or v0 % v1 != 0):
+      continue # Skip invalid division
+    if op == operator.sub and (v0 < v1):
+      continue # Skip invalid subtraction
+    
+    pair_new = ( op(v0, v1), f"({e0}{op_symbols[op]}{e1})" )
+    pairs.pop(i+1)
+    pairs[i]=pair_new
+    
+  value, expression = pairs[0] # This has the accumulated value, expression
+  return expression[1:-1], value  # Remove outermost brackets
+
 
 def generate_puzzle(seed=None, target_min=100, target_max=999, as_structure=False):
   if seed is not None: 
     random.seed(seed)
   while True: # We'll definitely (!) find one eventually
     numbers = generate_numbers()
-    expression_arr, target = random_expression(numbers)
-    #print(sorted(numbers), target, expression_arr)
-    if target_min<=target<=target_max and len(expression_arr)>0: # result within bounds, and expression_arr valid
-      expression='('*(len(expression_arr)-1) + ''.join(expression_arr)
+    #expression, target = random_expression_stack(numbers)
+    expression, target = random_expression_tree(numbers) # More expressive
+    #print(sorted(numbers), target, expression)
+    if target_min<=target<=target_max and expression is not None: # result within bounds, and expression_arr valid
       if as_structure:
         return dict(
           numbers=' '.join(str(n) for n in sorted(numbers)),
           target=str(target),
-          proof=expression
+          proof=expression,
         )
       else:        
         return sorted(numbers), target, expression

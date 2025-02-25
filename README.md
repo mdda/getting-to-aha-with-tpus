@@ -70,7 +70,7 @@ popd
 
 
 * [willccbb/grpo_demo.py](https://gist.github.com/willccbb/4676755236bb08cab5f4e54a0475d6fb)
-  + Will Brown
+  + Will Brown = @willccbb
   + Code gist, with comments from implementers / testers
     - Llama 1B, GSM8k
     - `from peft import LoraConfig`
