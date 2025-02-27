@@ -109,18 +109,39 @@ non_frozen_params = nnx.All(nnx.Param, nnx.Not(nnx.WithTag('frozen')))
 optimizer = nnx.Optimizer(model, optax.adam(1e-3), wrt=non_frozen_params) # 
 
 optimizer
+
+
 # -
-
-
-
-
+# ### Test nested jit
 
 # +
-import aha_dataset.countdown
+@jax.jit
+def f(x):
+  x=x*2
+  x=x+5
+  return x
+  
+@jax.jit
+def g(x):
+  x=x-5
+  x=x/2
+  return x
 
-aha_dataset.countdown.generate_puzzle()
+@jax.jit
+def h(x):
+  x=f(x)
+  x=g(x)
+  return x
+
+print(jax.make_jaxpr(h)(7.))
 # -
 
+print(jax.jit(h).lower(7.).compile().as_text())
+
+
+
+# ### Quick textwrap for long outputs 
+# #### Respect existing line-breaks
 
 # +
 import textwrap
@@ -132,6 +153,9 @@ print('\n---\n'.join('\n'.join(textwrap.wrap(t, width=120)) for t in txt.splitli
 
 
 len("John removes 6 pink hard hats, which is ( 4 times 2 = 8 ) green hard hats. Thus, the remaining hard hat counts are:")
+
+# ### Test countdown generation
+
 
 #import sys
 #sys.path.append(f"./getting-to-aha-with-tpus")
