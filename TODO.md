@@ -9,3 +9,12 @@
 * Debug flax on colab
 * High mem for gcp version
 * Try on TPU
+
+
+* Debug printing (even works in jitted code, though it may be out-of-order)
+```python
+      #if i==0:
+      #  jax.debug.print("_layer0 after block {v}", v=jnp.ravel(x)[:4],)
+      #  jax.debug.print("BREAK AFTER layer0")
+      #  break # 
+```

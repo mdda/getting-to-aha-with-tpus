@@ -141,35 +141,6 @@ metadata = params_lib.load_metadata( abs_path )
 ## https://github.com/google/flax/blob/main/examples/gemma/transformer.py#L60
 #metadata['somewhere in orbax checkpoint']  # This was used to detect other v2 models...
 
-# +
-# Copied from             : https://github.com/google-deepmind/gemma/blob/main/gemma/transformer.py#L168
-#   and modified to match : https://github.com/google/flax/blob/main/examples/gemma/transformer.py#L154
-#num_layers = _NUM_LAYERS_GEMMA2_2B = 26
-##cache_size = None
-#config_gemma2_2b = transformer_lib.TransformerConfig(
-#        num_layers=num_layers, # _NUM_LAYERS_GEMMA2_2B,
-#        num_embed=256128,
-#        embed_dim=2304,
-#        hidden_dim=9216,
-#        num_heads=8,
-#        head_dim=256,
-#        num_kv_heads=4,
-#        final_logit_softcap=30.0,
-#        attention_types=(
-#            transformer_lib.modules.AttentionType.LOCAL_SLIDING,
-#            transformer_lib.modules.AttentionType.GLOBAL,
-#        )
-#        #* int(_NUM_LAYERS_GEMMA2_2B / 2),
-#        * int(num_layers / 2),
-#        use_post_attn_norm=True,
-#        use_post_ffw_norm=True,
-#        #max_cache_length=cache_size,
-#        #query_pre_attn_norm=transformer_lib.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
-#        attn_logits_soft_cap=50.0,
-#        sliding_window_size=4096,
-#    )
-# -
-
 config_gemma2_2b = transformer_lib.TransformerConfig.gemma2_2b()
 config_gemma2_2b
 
@@ -210,7 +181,8 @@ layer_0/pre_ffw_norm/scale
   v = jnp.ravel(o)[:5]
   print(f"{k:>60s} : {v}") 
 
-# ``` 2b-it
+# GDM gemma library : 2b-it 
+# ``` 
 #                                     embedder/input_embedding : [0.0351562 -0.0229492 0.081543 -0.0019455 0.0786133]
 #                                             final_norm/scale : [2.32812 2.34375 2.28125 2.23438 2.07812]
 #                               layer_0/attn/attn_vec_einsum/w : [0.0090332 0.0100708 0.0155029 0.0114136 0.00349426]
