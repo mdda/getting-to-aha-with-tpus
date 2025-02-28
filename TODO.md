@@ -2,13 +2,23 @@
 ## Notes to self...
 
 * Fork nnx into mdda 
-  + create new branch : https://github.com/mdda/flax/tree/gemma2-2b
-  + copy over changes on gcp
-  + (check out my branch in config.nnx.tmp_dir)
-  + make sure it works 
-* Debug flax on colab
+  + DONE create new branch : https://github.com/mdda/flax/tree/gemma2-2b
+  + DONE copy over changes on gcp
+  + DONE (check out my branch in config.nnx.tmp_dir)
+  + DONE make sure it works 
+  + DONE Submit PR for basic gemma2-2b stuff
+
+* DONE Debug flax on colab
+* Try on TPU Colab
+  + Look at memory available
+  + Count of TPU cores
+  + Find usable indicators for being a TPU machine (for auto-detection)
+* Try on 'regular' TPU
+  + Write up for Sprint
 * High mem for gcp version
-* Try on TPU
+  + Is 64Gb enough?
+  + Can jit be better located for lower memory consumption?
+  + Add probabalistic SamplerPlugin idea
 
 
 * Debug printing (even works in jitted code, though it may be out-of-order)

@@ -22,8 +22,8 @@
 
 ```bash
 sudo snap install astral-uv --classic
-uv venv flax_nnx
-. ./flax_nnx/bin/activate
+uv venv env_flax.nnx
+. ./env_flax.nnx/bin/activate
 uv pip install jupyterlab jupytext OmegaConf
 ```
 

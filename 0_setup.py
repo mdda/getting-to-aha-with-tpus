@@ -17,7 +17,7 @@
 # ### https://flax.readthedocs.io/en/latest/guides/gemma.html
 
 # +
-import os
+import os,sys
 
 ## Install 'uv' 
 #sudo snap install astral-uv --classic
@@ -75,11 +75,13 @@ for phase in "nothing-new-required installations-performed".split(' '):
     # ! uv pip install kagglehub plotly treescope
 f"Installed with {phase}"
 
+BASE='./'
+
 # +
 from omegaconf import OmegaConf
 
-config = OmegaConf.load('./config.yaml')
-for extra in ['./config_secrets.yaml']:
+config = OmegaConf.load(f'{BASE}/config.yaml')
+for extra in [f'{BASE}/config_secrets.yaml']:
   if os.path.isfile(extra):
     config = OmegaConf.merge(config, OmegaConf.load(extra))
     
@@ -111,13 +113,14 @@ if not os.path.isdir(weights_dir):   # Only prompt for download if there's nothi
 #
 # * Code trickery from : https://flax.readthedocs.io/en/latest/guides/gemma.html
 
-import sys
+# +
 #repo_gemma_nnx_dir = config.nnx.repo_dir
 #if not os.path.isdir(repo_gemma_nnx_dir):
 #  os.makedirs(repo_gemma_nnx_dir, exist_ok=True)
 #  # clone the `flax` repo into 'repo_gemma_nnx_dir'
 #  # Then, append the `examples/gemma` folder to the path for loading the `gemma` modules.
 # #  ! git clone https://github.com/google/flax.git {repo_gemma_nnx_dir}/flax
+# -
 
 repo_gemma_nnx_dir = config.nnx.repo_dir
 if not os.path.isdir(repo_gemma_nnx_dir):
