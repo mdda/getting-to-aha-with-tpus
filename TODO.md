@@ -10,9 +10,10 @@
 
 * DONE Debug flax on colab
 * Try on TPU Colab
-  + Look at memory available
-  + Count of TPU cores
-  + Find usable indicators for being a TPU machine (for auto-detection)
+  + DONE Find usable indicators for being a TPU machine (for auto-detection)
+  + DONE Look at memory available = 48G?
+  + Integrate Colab findings into repo version of `0_setup.py`
+  + Count of TPU cores = 1?
 * Try on 'regular' TPU
   + Write up for Sprint
 * High mem for gcp version
