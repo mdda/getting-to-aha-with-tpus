@@ -16,6 +16,17 @@
 
 # +
 ### https://gemma-llm.readthedocs.io/en/latest/colab_sampling.html#
+# -
+
+# Common imports
+import os, sys, time
+
+REPO_NAME='getting-to-aha-with-tpus'
+if REPO_NAME in os.getcwd():
+  BASE='./'
+else:
+  # ! git clone https://github.com/mdda/getting-to-aha-with-tpus.git
+  BASE = f'./{REPO_NAME}'
 
 # +
 # # ! pip install -q git+https://github.com/google-deepmind/gemma.git
@@ -23,20 +34,35 @@
 # Actually needed to specify these (latest) versions to kill looping resolution (on GCP VM)
 # #! pip install gemma tensorflow[and-cuda] 'tfds-nightly==4.9.7.dev202502220044' 'google_cloud_resource_manager==1.14.1' 'grpcio_status==1.70.0'
 
-# Started with bare venv = '~/flax_gemma/'
-# ! uv pip install gemma "jax[cuda12]" # "tensorflow[with-cuda]" 
-# ! uv pip install plotly treescope
-"DONE"
+## Started with bare venv = '~/flax_gemma/'
+# #! uv pip install plotly treescope
+# ! uv pip install etils msgpack absl-py rich tqdm
+# ! uv pip install flax einops
+# ! uv pip install kauldron
+# ! uv pip install numpy
+#"DONE"
+# -
+
+import numpy as np
+def dummy_npwarn_decorator_factory():
+  def npwarn_decorator(x):
+    return x
+  return npwarn_decorator
+np._no_nep50_warning = getattr(np, '_no_nep50_warning', dummy_npwarn_decorator_factory)
+
+#NOPE#! git clone -b gemma2-2b https://github.com/mdda/flax.git {repo_gemma_nnx_dir}/flax
+if False:
+  # ! git clone https://github.com/google-deepmind/gemma.git
 
 # +
-# Common imports
-import os
 import jax
 import jax.numpy as jnp
 
 # Gemma imports
+sys.path.append(f"./gemma")
 from gemma import gm
 from gemma import peft  # Parameter fine-tuning utilities
+sys.path.pop();
 
 import treescope
 # -
@@ -64,7 +90,8 @@ model = gm.nn.LoRAWrapper(
 token_ids = jnp.zeros((1, 256,), dtype=jnp.int32)  # Create the (batch_size, seq_length)
 
 params = model.init(
-  jax.random.key(0),    # This randomises everything - but we'll load in on top soon enough...
+  jax.random.key(0),    
+  # This randomises everything - but we'll load pretrained params on top soon enough...
   token_ids,
 )
 
@@ -75,8 +102,9 @@ params = params['params']
 original, lora = peft.split_params(params)
 
 # Load the params from the checkpoint
+chk_path_abs = os.path.abspath(f"{BASE}/{config.model.ckpt_path}")
 #original = gm.ckpts.load_params(gm.ckpts.CheckpointPath.GEMMA2_2B_IT, params=original)  # This is a cloud bucket address 
-original = gm.ckpts.load_params(os.path.abspath(config.model.ckpt_path), params=original)
+original = gm.ckpts.load_params(chk_path_abs, params=original)
 
 # Merge the pretrained params back with LoRA
 params = peft.merge_params(original, lora)
@@ -106,12 +134,15 @@ prompt_txt = 'The capital of France,'
 prompt = tokenizer.encode(prompt_txt, add_bos=True)  # /!\ Don't forget to add the BOS token
 prompt = jnp.asarray(prompt)
 
-# Run the model
-out = model.apply(
-  {'params': params},
-  tokens=prompt,
-  #return_last_only=True,  # Only return the last token outputs
-)
+# Run the model repeatedly
+for _ in range(10):
+  t0=time.time()
+  out = model.apply(
+    {'params': params},
+    tokens=prompt,
+    #return_last_only=True,  # Only return the last token outputs
+  )
+  print(f"{(time.time()-t0)*1000.:.2f}msec")
 # -
 
 out.logits  # These are the 'correct outputs'
@@ -136,7 +167,19 @@ sampler = gm.text.Sampler(
 )
 # Initialise this in its own cell : This makes it so that it only needs to jit once
 
-sampler.sample([prompt_txt, prompt_txt], max_new_tokens=30)
+for bs in range(1,8+1):
+  t0=time.time()
+  sampler.sample([prompt_txt,]*bs, max_new_tokens=30)
+  print(f"{bs=} {(time.time()-t0)*1000.:.2f}msec")
+# Each first-time jit takes ~15 secs - cached thereafter
+# bs=1 3940.57msec (?)
+# bs=2 7992.34msec
+# bs=3 8186.23msec
+# bs=4 8340.97msec
+# bs=5 8554.05msec
+# bs=6 8714.00msec
+# bs=7 8835.65msec
+# bs=8 9034.69msec
 
 # ### Good features
 #
@@ -149,6 +192,20 @@ sampler.sample([prompt_txt, prompt_txt], max_new_tokens=30)
 #   + https://github.com/google-deepmind/gemma/blob/main/gemma/sampler.py#L170
 # * No sharding in Sampler (it's a TODO)
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # ### Testing
 # On Colab, add debug to:
 # * `/usr/local/lib/python3.11/dist-packages/gemma/transformer.py`
@@ -160,7 +217,7 @@ sampler.sample([prompt_txt, prompt_txt], max_new_tokens=30)
 #   + modules.Block (break after layer_0)
 #   + layers.RMSNorm
 # * JUST A MINUTE!
-#   + Order of operations in Block is completely wrong...
+#   + Order of operations in gemma.nnx Block is completely wrong...
 #   + Fixing it gets us back to normality!
 
 

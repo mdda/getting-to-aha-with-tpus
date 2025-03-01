@@ -36,7 +36,7 @@ if REPO_NAME in os.getcwd():
   BASE='./'
 else:
   # ! git clone https://github.com/mdda/getting-to-aha-with-tpus.git
-  BASE = './getting-to-aha-with-tpus'
+  BASE = f'./{REPO_NAME}'
 
 # +
 import subprocess
