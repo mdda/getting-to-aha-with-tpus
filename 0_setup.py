@@ -322,6 +322,8 @@ out_data = sampler(
 )
 print(f"Overall : {time.time()-t0:.2f}sec")
 # cache['v'].shape=(1, 1024, 4, 256)
+#E0301 06:38:28.048344    2149 pjrt_stream_executor_client.cc:3045] 
+# Execution of replica 0 failed: INTERNAL: Failed to allocate 84934656 bytes for new constant
 
 for input_string, out_string in zip(input_batch, out_data.text):
   print(f"Prompt:\n{input_string}\nOutput:\n{out_string}")
