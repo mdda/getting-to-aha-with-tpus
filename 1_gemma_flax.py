@@ -52,14 +52,14 @@ np._no_nep50_warning = getattr(np, '_no_nep50_warning', dummy_npwarn_decorator_f
 
 #NOPE#! git clone -b gemma2-2b https://github.com/mdda/flax.git {repo_gemma_nnx_dir}/flax
 if False:
-  # ! git clone https://github.com/google-deepmind/gemma.git
+  # ! git clone https://github.com/google-deepmind/gemma.git ./gdm-gemma
 
 # +
 import jax
 import jax.numpy as jnp
 
 # Gemma imports
-sys.path.append(f"./gemma")
+sys.path.append(f"./gdm-gemma")
 from gemma import gm
 from gemma import peft  # Parameter fine-tuning utilities
 sys.path.pop();
@@ -134,7 +134,7 @@ prompt_txt = 'The capital of France,'
 prompt = tokenizer.encode(prompt_txt, add_bos=True)  # /!\ Don't forget to add the BOS token
 prompt = jnp.asarray(prompt)
 
-# Run the model repeatedly
+# Run the model repeatedly : 'logits in parallel mode'
 for _ in range(10):
   t0=time.time()
   out = model.apply(
@@ -143,6 +143,11 @@ for _ in range(10):
     #return_last_only=True,  # Only return the last token outputs
   )
   print(f"{(time.time()-t0)*1000.:.2f}msec")
+# 11160.85msec   == jit delay
+# 337.03msec     
+# 211.90msec     == settled down
+# 211.92msec
+# 212.23msec
 # -
 
 out.logits  # These are the 'correct outputs'
@@ -167,19 +172,19 @@ sampler = gm.text.Sampler(
 )
 # Initialise this in its own cell : This makes it so that it only needs to jit once
 
-for bs in range(1,8+1):
+for bs in range(1,4+1):
   t0=time.time()
   sampler.sample([prompt_txt,]*bs, max_new_tokens=30)
   print(f"{bs=} {(time.time()-t0)*1000.:.2f}msec")
-# Each first-time jit takes ~15 secs - cached thereafter
-# bs=1 3940.57msec (?)
-# bs=2 7992.34msec
-# bs=3 8186.23msec
-# bs=4 8340.97msec
-# bs=5 8554.05msec
-# bs=6 8714.00msec
-# bs=7 8835.65msec
-# bs=8 9034.69msec
+# Each first-time jit takes + ~15 secs - cached thereafter
+# bs=1 21022.31msec
+# bs=2 25384.49msec
+# bs=3 25199.83msec
+# bs=4 24870.40msec
+# bs=1 15332.65msec <-- bs=1 has slightly different behaviour...
+# bs=2 7868.63msec
+# bs=3 8069.74msec
+# bs=4 8236.88msec
 
 # ### Good features
 #
@@ -192,15 +197,27 @@ for bs in range(1,8+1):
 #   + https://github.com/google-deepmind/gemma/blob/main/gemma/sampler.py#L170
 # * No sharding in Sampler (it's a TODO)
 
+# +
+# #%load_ext autoreload
+# #%autoreload 2
+# -
+
+# https://github.com/google-deepmind/gemma/blob/main/gemma/sampler.py#L81
+class MySampler(gm.text.Sampler):
+  def __init__(self, sampler):
+    #super().__init__()
+    #self.orig = orig_sampler
+    pass
+  def test(self):
+    print("Testing MySampler")
 
 
+my_sampler = MySampler(sampler)
 
-
-
-
-
-
-
+my_sampler.test()  # Works
+#my_sampler.model # Exists
+#my_sampler.cache_length
+my_sampler.dtype
 
 
 

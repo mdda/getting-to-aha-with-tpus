@@ -26,10 +26,11 @@ import time
 #. ./flax_nnx/bin/activate
 # include some package to get jupyter up correctly
 #uv pip install jupyterlab jupytext OmegaConf
-# -
 
-# %load_ext autoreload
-# %autoreload 2
+# +
+# #%load_ext autoreload
+# #%autoreload 2
+# -
 
 REPO_NAME='getting-to-aha-with-tpus'
 if REPO_NAME in os.getcwd():
