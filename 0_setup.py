@@ -285,6 +285,14 @@ def get_single_logits(prompt):  # prompt is a jnp array
   attn_mask  = transformer_lib.make_causal_attn_mask(input_mask)
   logits, _ = transformer(prompt, positions, cache=None, attention_mask=attn_mask)
   return logits
+# Huh - this causes no computation when it's 'executed' : Need to pass in some data...
+
+
+t0=time.time()
+get_single_logits(prompt)
+print(f"{(time.time()-t0)*1000.:.2f}msec")
+
+
 
 
 
