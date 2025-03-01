@@ -291,6 +291,11 @@ def get_single_logits(prompt):  # prompt is a jnp array
 t0=time.time()
 get_single_logits(prompt)
 print(f"{(time.time()-t0)*1000.:.2f}msec")
+# 104G Free -> 77 Free -> 30 Free (low)  => Max of 74Gb RAM used for jit
+#   Then it frees up some (back to 67Gb free) => 37Gb RAM used
+# ... followed by : 
+# E0301 06:12:44.143096    1600 pjrt_stream_executor_client.cc:3045] 
+# Execution of replica 0 failed: INTERNAL: Failed to allocate 84934656 bytes for new constant
 
 
 
