@@ -17,7 +17,8 @@
 # ### https://flax.readthedocs.io/en/latest/guides/gemma.html
 
 # +
-import os,sys
+import os, sys
+import time
 
 ## Install 'uv' 
 #sudo snap install astral-uv --classic
@@ -30,6 +31,13 @@ import os,sys
 # %load_ext autoreload
 # %autoreload 2
 
+REPO_NAME='getting-to-aha-with-tpus'
+if REPO_NAME in os.getcwd():
+  BASE='./'
+else:
+  # ! git clone https://github.com/mdda/getting-to-aha-with-tpus.git
+  BASE = './getting-to-aha-with-tpus'
+
 # +
 import subprocess
 
@@ -39,43 +47,49 @@ try:
     # We must have a GPU in the machine : Let's see whether JAX is installed, and knows about it
     import jax 
     #assert 'cuda' in ','.join([str(d) for d in jax.devices()]).lower()
-    assert 'gpu' in jax.default_backend()
+    assert 'gpu' in jax.default_backend()    
   except:    
     # ! uv pip install -U "jax[cuda12]"
     import jax
+  os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"]="1.00"    
 except:
   # We're not on a cuda machine - let's see whether we're on a TPU one
-  try:
+  if 'TPU_ACCELERATOR_TYPE' in os.environ:
+    # This is essential - even raw Colab TPU machines may have outdated JAX
+    # ! pip install -U "jax[tpu]" -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
     import jax 
-    YIKES - which one to install?
     assert 'tpu' in jax.default_backend()
-  except:    
-    print("Figure out what is special about a TPU machine without having jax installed already?")
-    # #! pip install -U "jax[tpu]" -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
-    import jax
+  else:  # We are on a CPU machine
+    try:
+      import jax  # Plain cpu version expected here...
+      assert 'cpu' in jax.default_backend()
+    except:    
+      # ! uv pip install -U "jax"
+      import jax
 
 import jax.numpy as jnp
 # JAX will preallocate 75% of the total GPU memory when the first JAX operation is run. 
 #   https://docs.jax.dev/en/latest/gpu_memory_allocation.html
-os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"]="1.00"
 jax.default_backend()
-# -
+
+# +
+# ! uv pip install --no-deps 'flax>=0.10.4'
 
 ## Follows https://flax.readthedocs.io/en/latest/nnx_basics.html
 for phase in "nothing-new-required installations-performed".split(' '):
   try:
     from flax import nnx
+    import jaxtyping
     import sentencepiece as spm
+    from omegaconf import OmegaConf    
     break # This worked!
     # ?? cannot import name 'Key' from 'flax.typing' (/home/andrewsm/env311/lib/python3.11/site-packages/flax/typing.py)
   except Exception as e:
     print(type(e), e)
-    # ! uv pip install --no-deps -U flax
+    # #! uv pip install --no-deps -U flax
     # ! uv pip install jaxtyping sentencepiece 
     # ! uv pip install kagglehub plotly treescope
 f"Installed with {phase}"
-
-BASE='./'
 
 # +
 from omegaconf import OmegaConf
@@ -95,6 +109,11 @@ weights_dir = config.model.weights_dir
 if not os.path.isdir(weights_dir):   # Only prompt for download if there's nothing there...
   os.environ['KAGGLE_USERNAME'] = config.kaggle.username
   os.environ['KAGGLE_KEY'] = config.kaggle.key
+
+  #from google.colab import userdata
+  #for k in 'KAGGLE_USERNAME|KAGGLE_KEY'.split('|'):
+  #  os.environ[k]=userdata.get(k)
+
   import kagglehub
   kagglehub.whoami()
   weights_dir = kagglehub.model_download(config.model.kaggle_id)
@@ -135,7 +154,8 @@ import sampler as sampler_lib
 import transformer as transformer_lib
 #sys.path.pop();
 
-abs_path = os.path.abspath(config.model.ckpt_path)
+#abs_path = os.path.abspath(config.model.ckpt_path)
+abs_path = os.path.abspath(f"{BASE}/{config.model.ckpt_path}")
 params = params_lib.load_and_format_params( abs_path )
 # NB: This is loaded on CPU : Nothing in GPU memory yet
 
@@ -249,6 +269,25 @@ next_token = jax.random.categorical(
 )
 vocab.id_to_piece(int(next_token))
 
+# Let's time repeated calls : Is there any warmup?
+for _ in range(10):
+  t0=time.time()
+  logits, _ = transformer(prompt, positions, cache=None, attention_mask=attn_mask)
+  print(f"{(time.time()-t0)*1000.:.2f}msec")
+
+
+# Let's try to jit the forward pass
+@nnx.jit
+def get_single_logits(prompt):  # prompt is a jnp array 
+  prompt_len = prompt.shape[1]
+  input_mask = jnp.ones( prompt_len, dtype=jnp.bool)[None, :] # Allow all tokens
+  positions  = transformer_lib.build_positions_from_mask(input_mask)
+  attn_mask  = transformer_lib.make_causal_attn_mask(input_mask)
+  logits, _ = transformer(prompt, positions, cache=None, attention_mask=attn_mask)
+  return logits
+
+
+
 # ### Now let's try and sample some output
 
 # Here, batch_size==1.  Having a different batch_size will trigger recompilation
@@ -282,4 +321,7 @@ STOP
 
 transformer=None
 
+# Create fake CPU multi-core setup : 
+#   https://flax.readthedocs.io/en/latest/guides/flax_gspmd.html#setup
+# os.environ["XLA_FLAGS"] = '--xla_force_host_platform_device_count=8'
 
