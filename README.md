@@ -1,7 +1,7 @@
 # Getting to Aha
-## With TPU(s) using <strike>JAX `nnx`</strike> something appropriate
+## With TPU(s) <strike>using JAX nnx</strike>
 
-* Reasoning-from-Zero : TPU for compute (+ something to output XLA, eg: JAX)
+* Reasoning-from-Zero using TPUs for compute
   + Following the release of DeepSeek's R1 model, there was a nice follow-up from a group at Berkeley with a 'Countdown task reasoner' that can be trained from scratch for "$30 of H100s" (https://github.com/Jiayi-Pan/TinyZero)
   + The aim of this project is to replicate that same task, but using a gemma2 model, and TPU infrastructure
   + This will make it far, far more likely that TPUs could become an experimentation platform for the curious : The current barriers to entry are very high
@@ -27,10 +27,11 @@
     - Framework being promoted as PyTorch-user-friendly
   + Negatives:
     - Early days (PROVEN)
-    - `gemma` example in [`nnx` docs code](https://flax.readthedocs.io/en/latest/guides/gemma.html) does not work
+    - `gemma` example in [`nnx` documentation](https://flax.readthedocs.io/en/latest/guides/gemma.html) does not work
       * [PR submitted to fix glaring error(s)](https://github.com/google/flax/pull/4587)
     - `nnx.jit` of Transformer forward pass proven to take &gt;60Gb RAM during compilation
-      * Therefore impractical for use on Colab/Kaggle
+      * (it would only not crash the VM if the instance had &lt;70Gb available RAM)
+      * Therefore impractical for use on Colab/Kaggle == DEAD END
 * [Google-DeepMind `gemma` library]() in JAX `flax.linen` (i.e. *old* style)
   + Positives:
     - The library actually works with Gemma2
@@ -69,7 +70,7 @@ So far:
 * `gemma` (GDM library) 
   + only has a greedy Sampler - which would need fixing
   + relies very heavily on `kauldron` to do fancy things
-* PyTorch looks interesting, though would need:
+* PyTorch/XLA `pytorch_gemma` looks interesting, though would need:
   + LoRA to be added (ideally using PEFT)
   + actual benchmarking on TPUs vs JAX (time-consuming)
 * Keras.JAX seems likely to be a good basis,
