@@ -28,22 +28,19 @@
     -                TPU_ACCELERATOR_TYPE='v5e-1'
     -                TPU_WORKER_HOSTNAMES='localhost'
 
-* SMOL hackathon
-  + Attempt jit on forward pass only : Does it crash machine?
-  + Add temperature, top_p, top_k (or something) in roll-out loop
-  + Generate a batch of rollouts
-  + Add in LoRA
-  + Try some LoRA training (simple objective : eg: short responses)
-  + Add in GRPO reward piece
-  + Try with GSM8k
+* High mem GCP instance for `nnx` version
+  + Is 64Gb enough? 
+    - NO : `jit` itself consumes 60Gb of RAM
+  + Can jit be better located for lower memory consumption?
+    - NO : That was just for Transformer logits forward pass
+  + Add probabalistic SamplerPlugin idea
+    - Why???
+
+* Write up +/- points of different directions in README
+
 
 * Try on 'regular' TPU
   + Write up for Sprint
-     
-* High mem for gcp version
-  + Is 64Gb enough?
-  + Can jit be better located for lower memory consumption?
-  + Add probabalistic SamplerPlugin idea
 
 
 * Debug printing (even works in jitted code, though it may be out-of-order)

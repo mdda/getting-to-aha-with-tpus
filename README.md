@@ -1,20 +1,62 @@
 # Getting to Aha
-## With TPU(s) using JAX `nnx`
+## With TPU(s) using <strike>JAX `nnx`</strike> something appropriate
 
-* Reasoning-from-Zero : JAX on TPU
+* Reasoning-from-Zero : TPU for compute (+ something to output XLA, eg: JAX)
   + Following the release of DeepSeek's R1 model, there was a nice follow-up from a group at Berkeley with a 'Countdown task reasoner' that can be trained from scratch for "$30 of H100s" (https://github.com/Jiayi-Pan/TinyZero)
-  + This project is to replicate that same task, but using JAX/TPU infrastructure (hopefully with a Gemma2 base model)
+  + The aim of this project is to replicate that same task, but using a gemma2 model, and TPU infrastructure
   + This will make it far, far more likely that TPUs could become an experimentation platform for the curious : The current barriers to entry are very high
 
 
 ## The Plan
 
-* Use Gemma2-2B-base on:
+* Use `gemma2-2B-base` on:
   + Kaggle TPU v3-8; and 
   + Colab TPU v2-8 (potentially - it would be very tight)
 * Reasoning task : Countdown task from TinyZero
   + RL objective : GRPO
 * Goal : Get to "Aha!" using \$free TPU resources
+  + with codebase that is:
+    * Plain and Readable (i.e. not simply dressing up a call to `trl`)
+    * Hackable (i.e. can implement more than the demo case)
+
+### Decision : Which framework?
+
+* JAX `flax.nnx` examples/gemma (i.e. *new* style)
+  + Positives: 
+    - Framework being promoted as PyTorch-user-friendly
+  + Negatives:
+    - Early days (PROVEN)
+    - `gemma` example in `nnx` docs code does not work
+      * [PR submitted to fix glaring error(s)](https://github.com/google/flax/pull/4587)
+    - `nnx.jit` of Transformer forward pass proven to take &gt;60Gb RAM during compilation
+      * Therefore impractical for use on Colab/Kaggle
+* Google-DeepMind `gemma` library in JAX `flax.linen` (i.e. *old* style)
+  + Positives:
+    - The library actually works with Gemma2
+      * And consumes &lt;1Gb RAM doing `jit` on forward pass / sampling
+    - Library has LoRA and sharding
+  + Negatives:
+    - Flax/linen is (according to the `nnx` docs) backward-looking
+    - Heavy dependency on `kauldron` for training (and sharding, etc)
+      * Undermines the goal of using plain, readable code 
+    - GDM `gemma` library transformer Sampler is greedy-only
+      * So adding library features would have to be done before beginning
+* [`pytorch-gemma`](https://github.com/google/gemma_pytorch/) library for PyTorch/XLA
+  + Positives:
+    - Library appears ready for CPU, GPU and TPU
+    - Includes distribution code
+  + Negatives:
+    - Does not appear to include LoRA
+      * Though may be compatible with PEFT (needs testing)
+    - While PyTorch XLA is clearly 'real'
+      * Need to test whether XLA code can get 'compiled' in a similar way to JAX `jit`  
+* [Keras gemma implementation](https://keras.io/keras_hub/api/models/gemma/gemma_causal_lm/) using JAX backend
+  + Positives:
+    - Library appears ready for CPU, GPU and TPU
+    - Includes LoRA, more sophisicated sampling and distribution
+  + Negatives:
+    - IMHO, Keras is perceived as being somewhat *lame* vs other frameworks
+    - Still need to test whether fancy sampling, fancy distribution strategy, and custom training step (GRPO) can be implemented *at the same time*
 
 --- 
 
