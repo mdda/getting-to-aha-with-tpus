@@ -44,10 +44,12 @@
 * [`pytorch-gemma`](https://github.com/google/gemma_pytorch/) library for PyTorch/XLA
   + Positives:
     - Library appears ready for CPU, GPU and TPU
-    - Includes distribution code
+    - Includes distribution code (with Column-wise and Row-wise Linear implementations)
+    - Includes 8-bit quantised code
   + Negatives:
     - Does not appear to include LoRA
       * Though may be compatible with PEFT (needs testing)
+      * How does this interact with sharding?  Eeek
     - While PyTorch XLA is clearly 'real'
       * Need to test whether XLA code can get 'compiled' in a similar way to JAX `jit`  
 * [Keras gemma implementation](https://keras.io/keras_hub/api/models/gemma/gemma_causal_lm/) using JAX backend
