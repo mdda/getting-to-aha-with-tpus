@@ -1,12 +1,17 @@
 
 ## Notes to self...
 
-* DONE Fork nnx into mdda 
+* DONE Fork `nnx` into mdda 
   + create new branch : https://github.com/mdda/flax/tree/gemma2-2b
   + copy over changes on gcp
-  + (check out my branch in config.nnx.tmp_dir)
+  + (check out my branch in `config.nnx.tmp_dir`)
   + make sure it works 
   + Submit PR for basic gemma2-2b stuff
+
+* Next ideas for `nnx gemma2`
+  + Upgrade Sampler to allow for plugins
+  + Fix 27B model's [attention normalisation factor](https://github.com/google-deepmind/gemma/blob/main/gemma/transformer.py#L235)
+
 
 * DONE Debug flax on colab (GDM gemma = flax.linen)
 

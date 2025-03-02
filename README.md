@@ -19,27 +19,29 @@
     * Plain and Readable (i.e. not simply dressing up a call to `trl`)
     * Hackable (i.e. can implement more than the demo case)
 
+
 ### Decision : Which framework?
 
-* JAX `flax.nnx` examples/gemma (i.e. *new* style)
+* [JAX `flax.nnx` examples/gemma](https://github.com/google/flax/tree/main/examples/gemma) (i.e. *new* style)
   + Positives: 
     - Framework being promoted as PyTorch-user-friendly
   + Negatives:
     - Early days (PROVEN)
-    - `gemma` example in `nnx` docs code does not work
+    - `gemma` example in [`nnx` docs code](https://flax.readthedocs.io/en/latest/guides/gemma.html) does not work
       * [PR submitted to fix glaring error(s)](https://github.com/google/flax/pull/4587)
     - `nnx.jit` of Transformer forward pass proven to take &gt;60Gb RAM during compilation
       * Therefore impractical for use on Colab/Kaggle
-* Google-DeepMind `gemma` library in JAX `flax.linen` (i.e. *old* style)
+* [Google-DeepMind `gemma` library]() in JAX `flax.linen` (i.e. *old* style)
   + Positives:
     - The library actually works with Gemma2
       * And consumes &lt;1Gb RAM doing `jit` on forward pass / sampling
     - Library has LoRA and sharding
   + Negatives:
     - Flax/linen is (according to the `nnx` docs) backward-looking
-    - Heavy dependency on `kauldron` for training (and sharding, etc)
+    - Heavy dependency on `kauldron` for training (and [LoRA]https://github.com/google-deepmind/gemma/blob/main/examples/lora.py#L53, [sharding](https://github.com/google-deepmind/gemma/blob/main/examples/sharding.py#L44), etc)
       * Undermines the goal of using plain, readable code 
-    - GDM `gemma` library transformer Sampler is greedy-only
+    - GDM `gemma` library transformer [Sampler is greedy-only](https://github.com/google-deepmind/gemma/blob/main/gemma/sampler.py#L145) 
+      * Monkey-patching this functionality (which is deep inside the class) would smell bad
       * So adding library features would have to be done before beginning
 * [`pytorch-gemma`](https://github.com/google/gemma_pytorch/) library for PyTorch/XLA
   + Positives:
@@ -50,15 +52,28 @@
     - Does not appear to include LoRA
       * Though may be compatible with PEFT (needs testing)
       * How does this interact with sharding?  Eeek
-    - While PyTorch XLA is clearly 'real'
+    - While PyTorch XLA is clearly ['real'](https://github.com/google/gemma_pytorch/blob/main/scripts/run_xla.py#L33) ...
       * Need to test whether XLA code can get 'compiled' in a similar way to JAX `jit`  
 * [Keras gemma implementation](https://keras.io/keras_hub/api/models/gemma/gemma_causal_lm/) using JAX backend
   + Positives:
-    - Library appears ready for CPU, GPU and TPU
+    - Ecosystem appears ready for CPU, GPU and [TPU](https://www.kaggle.com/code/matthewdwatson/gemma-2-tpu-fine-tuning)
     - Includes LoRA, more sophisicated sampling and distribution
   + Negatives:
     - IMHO, Keras is perceived as being somewhat *lame* vs other frameworks
     - Still need to test whether fancy sampling, fancy distribution strategy, and custom training step (GRPO) can be implemented *at the same time*
+
+So far: 
+* `nnx` has suceeded in:
+  + causing me to labouriously debug and fix the example library 
+  + wasting many GPU hours frustratedly trying to `nnx.jit` things without crashing the VM
+* `gemma` (GDM library) 
+  + only has a greedy Sampler - which would need fixing
+  + relies very heavily on `kauldron` to do fancy things
+* PyTorch looks interesting, though would need:
+  + LoRA to be added (ideally using PEFT)
+  + actual benchmarking on TPUs vs JAX (time-consuming)
+* Keras.JAX seems likely to be a good basis,
+  + though it remains to be seen whether it works as advertised as the model/RL gets more complex
 
 --- 
 
