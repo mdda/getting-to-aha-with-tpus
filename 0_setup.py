@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.7
+#       jupytext_version: 1.16.4
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -26,18 +26,27 @@ import time
 #. ./flax_nnx/bin/activate
 # include some package to get jupyter up correctly
 #uv pip install jupyterlab jupytext OmegaConf
-
-# +
-# #%load_ext autoreload
-# #%autoreload 2
 # -
 
-REPO_NAME='getting-to-aha-with-tpus'
-if REPO_NAME in os.getcwd():
-  BASE='./'
-else:
+# %load_ext autoreload
+# %autoreload 2
+
+REPO_NAME, BASE = 'getting-to-aha-with-tpus', './'
+if not REPO_NAME in os.getcwd():
   # ! git clone https://github.com/mdda/getting-to-aha-with-tpus.git
   BASE = f'./{REPO_NAME}'
+sys.path.append(BASE)
+
+import aha_library.platform
+backend = aha_library.platform.detect()
+pip_install = aha_library.platform.jax_pip_install_str(backend)
+# ! uv {pip_install}  # This pulls in the correct JAX for the platform
+backend
+
+import jax
+jax.default_backend()
+
+
 
 # +
 import subprocess
@@ -72,6 +81,9 @@ import jax.numpy as jnp
 # JAX will preallocate 75% of the total GPU memory when the first JAX operation is run. 
 #   https://docs.jax.dev/en/latest/gpu_memory_allocation.html
 jax.default_backend()
+# -
+
+# ## `nnx` installation
 
 # +
 # ! uv pip install --no-deps 'flax>=0.10.4'
@@ -101,6 +113,9 @@ for extra in [f'{BASE}/config_secrets.yaml']:
     config = OmegaConf.merge(config, OmegaConf.load(extra))
     
 config.model.GEMMA_VARIANT, config.model.kaggle_id, config.model.kaggle_dir, config.model.weights_dir
+# -
+
+# ## Load JAX/Flax version of `gemma2-2b` weights
 
 # +
 from IPython.display import clear_output  # Makes the kaggle download less disgusting

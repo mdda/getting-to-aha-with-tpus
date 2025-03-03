@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.7
+#       jupytext_version: 1.16.4
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -21,10 +21,8 @@
 # Common imports
 import os, sys, time
 
-REPO_NAME='getting-to-aha-with-tpus'
-if REPO_NAME in os.getcwd():
-  BASE='./'
-else:
+REPO_NAME, BASE = 'getting-to-aha-with-tpus', './'
+if not REPO_NAME in os.getcwd():
   # ! git clone https://github.com/mdda/getting-to-aha-with-tpus.git
   BASE = f'./{REPO_NAME}'
 
