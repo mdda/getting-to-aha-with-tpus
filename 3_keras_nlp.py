@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.16.7
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -19,8 +19,8 @@
 # -
 
 # #! uv pip install -q -U keras-nlp tensorflow-text
-# ! uv pip install -q -U keras-hub tensorflow-text
-# ! uv pip install -q -U tensorflow-cpu
+# ! uv pip install -U keras-hub tensorflow-text
+# ! uv pip install -U tensorflow-cpu
 
 # Common imports
 import os, sys, time
@@ -29,15 +29,18 @@ REPO_NAME, BASE = 'getting-to-aha-with-tpus', './'
 if not REPO_NAME in os.getcwd():
   # ! git clone https://github.com/mdda/getting-to-aha-with-tpus.git
   BASE = f'./{REPO_NAME}'
+BASE
 
 import aha_library.platform
 backend = aha_library.platform.detect()
 pip_install = aha_library.platform.jax_pip_install_str(backend)
-# ! uv {pip_install}  # This pulls in the correct JAX for the platform
-backend # Seems like I need to do this...
+# ! uv {pip_install}  # This pulls in the correct JAX for the platform - likely needs updating, even if already in VM image
+backend, pip_install
 
 import jax
 jax.devices()
+# CUDA : [CudaDevice(id=0)]
+# TPU : ...
 
 # +
 import os
@@ -51,6 +54,10 @@ os.environ["KERAS_BACKEND"] = "jax"
 import keras
 #import keras_nlp
 import keras_hub
+# Takes a while
+
+if backend=='gpu':
+  keras.mixed_precision.set_global_policy("mixed_float16")
 
 # +
 n_devices, model_dim, batch_dim = len(jax.devices()), "model", "batch"
@@ -60,6 +67,7 @@ device_mesh_model_parallel = keras.distribution.DeviceMesh(
   [batch_dim, model_dim],
   devices=keras.distribution.list_devices(),
 )
+device_mesh_model_parallel
 
 # +
 layout_map = keras.distribution.LayoutMap(device_mesh_model_parallel)
@@ -75,6 +83,8 @@ layout_map["decoder_block.*attention_output/kernel"] = (model_dim, None, None)
 layout_map["decoder_block.*ffw_gating.*/kernel"] = (None, model_dim)
 layout_map["decoder_block.*ffw_linear/kernel"] = (model_dim, None)
 
+model_name
+
 # +
 model_parallel = keras.distribution.ModelParallel(
   layout_map=layout_map,
@@ -82,17 +92,40 @@ model_parallel = keras.distribution.ModelParallel(
 )
 
 keras.distribution.set_distribution(model_parallel)
-gemma_lm = keras_nlp.models.GemmaCausalLM.from_preset(model_name)
+
+# +
+# Need to set up kaggle credentials...
+from omegaconf import OmegaConf
+config = OmegaConf.load(f'{BASE}/config.yaml')
+for extra in [f'{BASE}/config_secrets.yaml']:
+  if os.path.isfile(extra):
+    config = OmegaConf.merge(config, OmegaConf.load(extra))
+os.environ['KAGGLE_USERNAME'] = config.kaggle.username
+os.environ['KAGGLE_KEY'] = config.kaggle.key
+  
+gemma_lm = keras_hub.models.GemmaCausalLM.from_preset(model_name)  #  Download of ~5Gb, nice formatting
 # -
 
 decoder_block_1 = gemma_lm.backbone.get_layer('decoder_block_1')
 print(type(decoder_block_1))
 for variable in decoder_block_1.weights:
-  print(f'{variable.path:<48}  {str(variable.shape):<14}  {str(variable.value.sharding.spec)}')
+  if n_devices>1:
+    print(f'{variable.path:<48}  {str(variable.shape):<14}  {str(variable.value.sharding.spec)}') # 
+  else:
+    print(f'{variable.path:<48}  {str(variable.shape):<14}  {str(variable.value.sharding)}') # SingleDeviceSharding    
 
 # ## Inference test
 
+# +
 print(gemma_lm.generate("How can I plan a trip to Europe?", max_length=512))
+
+# GPU (greedy sampler is default)
+# I'm planning a trip to Europe in the summer of 2017. I'm looking for some advice on how to plan a trip like this. 
+# I'm looking for a trip that is not too expensive, but also not too cheap. 
+# I'm looking for a trip that is not too long, but also not too short. 
+# I'm looking for a trip that is not too crowded, but also not too empty. 
+# I'm looking for a trip that is not too hot, but also not too cold. 
+# -
 
 
 
@@ -103,16 +136,17 @@ gemma_lm.compile(
   sampler = keras_hub.samplers.RandomSampler(temperature=0.7)
 )
 
-
+print(gemma_lm.generate("How can I plan a trip to Europe?", max_length=100))
 
 # ## Add LoRA
 
 # Enable LoRA for the model and set the LoRA rank to 8.
 gemma_lm.backbone.enable_lora(rank=8)
 
-# +
 # Retest sampling...
-# -
+t0=time.time()
+print(gemma_lm.generate("How can I plan a trip to Europe?", max_length=100))
+print(f"{(time.time()-t0)*1000.:.2f}ms") # T4 ~ 64 tok/sec
 
 
 
@@ -122,20 +156,22 @@ gemma_lm.backbone.enable_lora(rank=8)
 # +
 #import json
 #data = []
-with open('/kaggle/input/databricks-dolly-15k/databricks-dolly-15k.jsonl') as file:
-    for line in file:
-        features = json.loads(line)
-        # Filter out examples with context, to keep it simple.
-        if features["context"]:
-            continue
-        # Format the entire example as a single string.
-        template = "Instruction:\n{instruction}\n\nResponse:\n{response}"
-        data.append(template.format(**features))
-
+#with open('/kaggle/input/databricks-dolly-15k/databricks-dolly-15k.jsonl') as file:
+#    for line in file:
+#        features = json.loads(line)
+#        # Filter out examples with context, to keep it simple.
+#        if features["context"]:
+#            continue
+#        # Format the entire example as a single string.
+#        template = "Instruction:\n{instruction}\n\nResponse:\n{response}"
+#        data.append(template.format(**features))
+#
 # Truncate our data to speed up training.
-data = data[:2500]
+#data = data[:2500]
+# +
+# Python generator?
+# "Instruction:\n{instruction}\n\nResponse:\n{response}"
 # -
-
 
 
 # ## Training test
@@ -147,6 +183,10 @@ gemma_lm.compile(
     weighted_metrics=[keras.metrics.SparseCategoricalAccuracy()],
 )
 gemma_lm.summary()
+# GPU (standard loading):
+#   Total params: 2,620,199,168 (9.76 GB)
+#   Trainable params: 5,857,280 (22.34 MB)
+#   Non-trainable params: 2,614,341,888 (9.74 GB)
 
 gemma_lm.fit(data, epochs=1, batch_size=4)
 

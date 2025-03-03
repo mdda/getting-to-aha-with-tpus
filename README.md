@@ -84,7 +84,7 @@ So far:
 sudo snap install astral-uv --classic
 uv venv env_flax.nnx
 . ./env_flax.nnx/bin/activate
-uv pip install jupyterlab jupytext OmegaConf
+uv pip install jupyterlab jupytext tdqm OmegaConf
 ```
 
 * Run jupyterlab notebook enviroment:
