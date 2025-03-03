@@ -52,12 +52,17 @@ os.environ["KERAS_BACKEND"] = "jax"
 # -
 
 import keras
-#import keras_nlp
 import keras_hub
 # Takes a while
 
 if backend=='gpu':
-  keras.mixed_precision.set_global_policy("mixed_float16")
+  #keras.mixed_precision.set_global_policy("mixed_float16") 
+  # Doesn't seem to change anything...
+  #keras.config.set_dtype_policy("mixed_float16") # https://keras.io/api/mixed_precision/policy/
+  # Doesn't seem to change anything...
+  #keras.mixed_precision.set_global_policy("mixed_bfloat16") # ... try again...
+  # CAUSES : XlaRuntimeError: UNIMPLEMENTED: Unsupported algorithm on the current device(s): ALG_DOT_BF16_BF16_F32
+  pass
 
 # +
 n_devices, model_dim, batch_dim = len(jax.devices()), "model", "batch"
@@ -102,8 +107,13 @@ for extra in [f'{BASE}/config_secrets.yaml']:
     config = OmegaConf.merge(config, OmegaConf.load(extra))
 os.environ['KAGGLE_USERNAME'] = config.kaggle.username
 os.environ['KAGGLE_KEY'] = config.kaggle.key
-  
+
+# https://keras.io/keras_hub/api/models/gemma/gemma_causal_lm/
 gemma_lm = keras_hub.models.GemmaCausalLM.from_preset(model_name)  #  Download of ~5Gb, nice formatting
+
+# +
+#gemma_lm.quantize("float16")  # Try this... :: NOPE - expects int8...
+#gemma_lm.quantize("float8")  # Ok then...  This attempts all layers...
 # -
 
 decoder_block_1 = gemma_lm.backbone.get_layer('decoder_block_1')
@@ -114,10 +124,17 @@ for variable in decoder_block_1.weights:
   else:
     print(f'{variable.path:<48}  {str(variable.shape):<14}  {str(variable.value.sharding)}') # SingleDeviceSharding    
 
+# ## Add LoRA
+
+# Enable LoRA for the model and set the LoRA rank to 8.
+gemma_lm.backbone.enable_lora(rank=8) 
+# This appears to make the sampling regenerate code
+
 # ## Inference test
 
 # +
-print(gemma_lm.generate("How can I plan a trip to Europe?", max_length=512))
+print(gemma_lm.generate("How can I plan a trip to Europe?", max_length=100))
+# First generation is v time-consuming
 
 # GPU (greedy sampler is default)
 # I'm planning a trip to Europe in the summer of 2017. I'm looking for some advice on how to plan a trip like this. 
@@ -136,17 +153,14 @@ gemma_lm.compile(
   sampler = keras_hub.samplers.RandomSampler(temperature=0.7)
 )
 
-print(gemma_lm.generate("How can I plan a trip to Europe?", max_length=100))
-
-# ## Add LoRA
-
-# Enable LoRA for the model and set the LoRA rank to 8.
-gemma_lm.backbone.enable_lora(rank=8)
-
-# Retest sampling...
 t0=time.time()
 print(gemma_lm.generate("How can I plan a trip to Europe?", max_length=100))
-print(f"{(time.time()-t0)*1000.:.2f}ms") # T4 ~ 64 tok/sec
+print(f"{(time.time()-t0)*1000.:.2f}ms") # Includes jit?
+
+# Time-test the sampling...
+t0=time.time()
+print(gemma_lm.generate("How can I plan a trip to Europe?", max_length=100))
+print(f"{(time.time()-t0)*1000.:.2f}ms") # T4 ~ 64 ms/tok (32-bit), 91 ms/tok (16-bit?)
 
 
 
@@ -178,17 +192,20 @@ print(f"{(time.time()-t0)*1000.:.2f}ms") # T4 ~ 64 tok/sec
 
 gemma_lm.preprocessor.sequence_length = 512
 gemma_lm.compile(
-    loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-    optimizer=keras.optimizers.Adam(learning_rate=5e-5),
-    weighted_metrics=[keras.metrics.SparseCategoricalAccuracy()],
+  loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+  optimizer=keras.optimizers.Adam(learning_rate=5e-5),
+  weighted_metrics=[keras.metrics.SparseCategoricalAccuracy()],
+  sampler = keras_hub.samplers.RandomSampler(temperature=0.7),  # Add this in too
 )
 gemma_lm.summary()
-# GPU (standard loading):
+# GPU (standard loading):  -- changing to float16 above seems to make no difference
 #   Total params: 2,620,199,168 (9.76 GB)
 #   Trainable params: 5,857,280 (22.34 MB)
 #   Non-trainable params: 2,614,341,888 (9.74 GB)
 
-gemma_lm.fit(data, epochs=1, batch_size=4)
+# +
+#gemma_lm.fit(data, epochs=1, batch_size=4)
+# -
 
 
 
