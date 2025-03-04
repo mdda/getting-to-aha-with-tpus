@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.7
+#       jupytext_version: 1.16.4
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -34,22 +34,25 @@ BASE
 import aha_library.platform
 backend = aha_library.platform.detect()
 pip_install = aha_library.platform.jax_pip_install_str(backend)
-# ! uv {pip_install}  # This pulls in the correct JAX for the platform - likely needs updating, even if already in VM image
+if backend != 'tpu':
+  # ! uv {pip_install}  # This pulls in the correct JAX for the platform - likely needs updating, even if already in VM image
 backend, pip_install
 
-import jax
-jax.devices()
-# CUDA : [CudaDevice(id=0)]
-# TPU : ...
-
 # +
-import os
+# base Colab TPU machine (no JAX upgrade)
+# jax==0.4.33 jaxlib==0.4.33
+# libtpu==2.18.0 libtpu-nightly==0.1.dev20240916+nightly
+# -
 
 # The Keras 3 distribution API is only implemented for the JAX backend for now
 os.environ["KERAS_BACKEND"] = "jax"
 # Pre-allocate all TPU memory to minimize memory fragmentation and allocation overhead.
 #os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "1.0"  # Already handled in platform.jax_pip_install_str
-# -
+
+import jax
+jax.devices()
+# CUDA : [CudaDevice(id=0)]
+# TPU : ...
 
 import keras
 import keras_hub
@@ -62,7 +65,10 @@ if backend=='gpu':
   # Doesn't seem to change anything...
   #keras.mixed_precision.set_global_policy("mixed_bfloat16") # ... try again...
   # CAUSES : XlaRuntimeError: UNIMPLEMENTED: Unsupported algorithm on the current device(s): ALG_DOT_BF16_BF16_F32
+  keras.config.set_floatx("float16")    # TRY OUT!
   pass
+if backend=='tpu':
+  keras.config.set_floatx("bfloat16")  
 
 # +
 n_devices, model_dim, batch_dim = len(jax.devices()), "model", "batch"
@@ -99,14 +105,9 @@ model_parallel = keras.distribution.ModelParallel(
 keras.distribution.set_distribution(model_parallel)
 
 # +
-# Need to set up kaggle credentials...
-from omegaconf import OmegaConf
-config = OmegaConf.load(f'{BASE}/config.yaml')
-for extra in [f'{BASE}/config_secrets.yaml']:
-  if os.path.isfile(extra):
-    config = OmegaConf.merge(config, OmegaConf.load(extra))
-os.environ['KAGGLE_USERNAME'] = config.kaggle.username
-os.environ['KAGGLE_KEY'] = config.kaggle.key
+import aha_library.config
+config = aha_library.config.read(BASE)  
+aha_library.load_kaggle_secrets(config) # sets up kaggle environment variables 
 
 # https://keras.io/keras_hub/api/models/gemma/gemma_causal_lm/
 gemma_lm = keras_hub.models.GemmaCausalLM.from_preset(model_name)  #  Download of ~5Gb, nice formatting
