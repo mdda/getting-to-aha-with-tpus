@@ -18,7 +18,6 @@
 ### https://www.kaggle.com/code/matthewdwatson/gemma-2-tpu-fine-tuning/notebook
 # -
 
-# #! uv pip install -q -U keras-nlp tensorflow-text
 # ! uv pip install -U keras-hub tensorflow-text
 # ! uv pip install -U tensorflow-cpu
 
@@ -29,6 +28,7 @@ REPO_NAME, BASE = 'getting-to-aha-with-tpus', './'
 if not REPO_NAME in os.getcwd():
   # ! git clone https://github.com/mdda/getting-to-aha-with-tpus.git
   BASE = f'./{REPO_NAME}'
+sys.path.append(BASE)
 BASE
 
 import aha_library.platform

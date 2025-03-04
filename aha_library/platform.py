@@ -19,7 +19,7 @@ def jax_pip_install_str(backend, XLA_PYTHON_CLIENT_MEM_FRACTION=1.0):
   elif backend=='gpu':
     s='pip install -U "jax[cuda12]"'
   elif backend=='tpu':
-    s='install -U "jax[tpu]" -f https://storage.googleapis.com/jax-releases/libtpu_releases.html'
+    s='pip install -U "jax[tpu]" -f https://storage.googleapis.com/jax-releases/libtpu_releases.html'
   else:
     raise(f"Unknown backend '{backend}'")
   if accelerator:
