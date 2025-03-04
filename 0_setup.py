@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.16.7
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -25,7 +25,7 @@ import time
 #uv venv flax_nnx
 #. ./flax_nnx/bin/activate
 # include some package to get jupyter up correctly
-#uv pip install jupyterlab jupytext OmegaConf
+#uv pip install jupyterlab ipywidgets jupytext OmegaConf
 # -
 
 # %load_ext autoreload

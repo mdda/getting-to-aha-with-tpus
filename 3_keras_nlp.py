@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.16.7
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -165,12 +165,12 @@ gemma_lm.compile(
 
 t0=time.time()
 print(gemma_lm.generate("How can I plan a trip to Europe?", max_length=100))
-print(f"{(time.time()-t0)*1000.:.2f}ms") # Includes jit? ... >20secs
+print(f"{(time.time()-t0)*1000.:.2f}ms") # Includes jit? ... ~20secs
 
 # Time-test the sampling...
 t0=time.time()
 print(gemma_lm.generate("How can I plan a trip to Europe?", max_length=100))
-print(f"{(time.time()-t0)*1000.:.2f}ms") # T4 ~ 64 ms/tok (32-bit), 91 ms/tok (16-bit?), TPU v5-1 ~ 7 ms/tok
+print(f"{(time.time()-t0)*1000.:.2f}ms") # T4 ~ 64 ms/tok (32-bit), 39 ms/tok (16-bit), TPU v5-1 ~ 7 ms/tok
 
 
 
@@ -200,6 +200,7 @@ print(f"{(time.time()-t0)*1000.:.2f}ms") # T4 ~ 64 ms/tok (32-bit), 91 ms/tok (1
 
 # ## Training test
 
+# +
 gemma_lm.preprocessor.sequence_length = 512
 gemma_lm.compile(
   loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
@@ -208,10 +209,17 @@ gemma_lm.compile(
   sampler = keras_hub.samplers.RandomSampler(temperature=0.7),  # Add this in too
 )
 gemma_lm.summary()
-# GPU (standard loading):  -- changing to float16 above seems to make no difference
+
+# GPU (standard loading):  -- changing to a 'policy' of float16 above seems to make no difference
 #   Total params: 2,620,199,168 (9.76 GB)
 #   Trainable params: 5,857,280 (22.34 MB)
 #   Non-trainable params: 2,614,341,888 (9.74 GB)
+
+# GPU (with .set_floatx() ) -- loads, and runs in 16-bit everywhere ! 
+#   Total params: 2,620,199,168 (4.88 GB)
+#   Trainable params: 5,857,280 (11.17 MB)
+#   Non-trainable params: 2,614,341,888 (4.87 GB)
+
 # TPU v5-1 (JAX backend)
 #    Total params: 2,620,199,168 (4.88 GB)
 #    Trainable params: 5,857,280 (11.17 MB)
