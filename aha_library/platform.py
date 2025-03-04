@@ -12,19 +12,28 @@ def detect(XLA_PYTHON_CLIENT_MEM_FRACTION=1.0):
       return 'cpu'        
 
 def jax_pip_install_str(backend, XLA_PYTHON_CLIENT_MEM_FRACTION=1.0):
-  s, accelerator = '', True
+  uv, jax_str, accelerator = 'uv', '', True
+  
   if backend=='cpu':
-    s='pip install -U "jax"'
+    jax_str='pip install -U "jax"'
     accelerator = False
   elif backend=='gpu':
-    s='pip install -U "jax[cuda12]"'
+    jax_str='pip install -U "jax[cuda12]"'
   elif backend=='tpu':
-    s='pip install -U "jax[tpu]" -f https://storage.googleapis.com/jax-releases/libtpu_releases.html'
+    jax_str='pip install -U "jax[tpu]" -f https://storage.googleapis.com/jax-releases/libtpu_releases.html'
   else:
     raise(f"Unknown backend '{backend}'")
+    
   if accelerator:
     # By default JAX will preallocate 75% of the total GPU memory when the first JAX operation is run. 
     #   https://docs.jax.dev/en/latest/gpu_memory_allocation.html
     os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"]=str(XLA_PYTHON_CLIENT_MEM_FRACTION)
-  return s
+    
+  try:
+    from google.colab import userdata
+    uv=''  # Don't use plain uv on Colab!
+  except:
+    pass
+    
+  return uv, jax_str
 

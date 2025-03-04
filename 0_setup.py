@@ -39,9 +39,10 @@ sys.path.append(BASE)
 
 import aha_library.platform
 backend = aha_library.platform.detect()
-pip_install = aha_library.platform.jax_pip_install_str(backend)
-# ! uv {pip_install}  # This pulls in the correct JAX for the platform
-backend
+uv_cmd, pip_install_jax = aha_library.platform.jax_pip_install_str(backend)
+# This pulls in the correct JAX for the platform - likely needs updating, even if already in VM image
+# ! {uv_cmd} {pip_install_jax}  
+backend, pip_install_jax
 
 import jax
 jax.default_backend()
@@ -49,33 +50,34 @@ jax.default_backend()
 
 
 # +
-import subprocess
-
-try:
-  subprocess.check_output('nvidia-smi')
-  try:
-    # We must have a GPU in the machine : Let's see whether JAX is installed, and knows about it
-    import jax 
-    #assert 'cuda' in ','.join([str(d) for d in jax.devices()]).lower()
-    assert 'gpu' in jax.default_backend()    
-  except:    
-    # ! uv pip install -U "jax[cuda12]"
-    import jax
-  os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"]="1.00"    
-except:
-  # We're not on a cuda machine - let's see whether we're on a TPU one
-  if 'TPU_ACCELERATOR_TYPE' in os.environ:
-    # This is essential - even raw Colab TPU machines may have outdated JAX
-    # ! pip install -U "jax[tpu]" -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
-    import jax 
-    assert 'tpu' in jax.default_backend()
-  else:  # We are on a CPU machine
-    try:
-      import jax  # Plain cpu version expected here...
-      assert 'cpu' in jax.default_backend()
-    except:    
-      # ! uv pip install -U "jax"
-      import jax
+#import subprocess
+#
+#try:
+#  subprocess.check_output('nvidia-smi')
+#  try:
+#    # We must have a GPU in the machine : Let's see whether JAX is installed, and knows about it
+#    import jax 
+#    #assert 'cuda' in ','.join([str(d) for d in jax.devices()]).lower()
+#    assert 'gpu' in jax.default_backend()    
+#  except:    
+# #    ! uv pip install -U "jax[cuda12]"
+#    import jax
+#  os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"]="1.00"    
+#except:
+#  # We're not on a cuda machine - let's see whether we're on a TPU one
+#  if 'TPU_ACCELERATOR_TYPE' in os.environ:
+#    # This is essential - even raw Colab TPU machines may have outdated JAX
+# #    ! pip install -U "jax[tpu]" -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
+#    import jax 
+#    assert 'tpu' in jax.default_backend()
+#  else:  # We are on a CPU machine
+#    try:
+#      import jax  # Plain cpu version expected here...
+#      assert 'cpu' in jax.default_backend()
+#    except:    
+# #      ! uv pip install -U "jax"
+#      import jax
+#
 
 import jax.numpy as jnp
 # JAX will preallocate 75% of the total GPU memory when the first JAX operation is run. 
@@ -83,34 +85,38 @@ import jax.numpy as jnp
 jax.default_backend()
 # -
 
-# ## `nnx` installation
+# ;## `nnx` installation
 
 # +
-# ! uv pip install --no-deps 'flax>=0.10.4'
-
-## Follows https://flax.readthedocs.io/en/latest/nnx_basics.html
-for phase in "nothing-new-required installations-performed".split(' '):
-  try:
-    from flax import nnx
-    import jaxtyping
-    import sentencepiece as spm
-    from omegaconf import OmegaConf    
-    break # This worked!
-    # ?? cannot import name 'Key' from 'flax.typing' (/home/andrewsm/env311/lib/python3.11/site-packages/flax/typing.py)
-  except Exception as e:
-    print(type(e), e)
-    # #! uv pip install --no-deps -U flax
-    # ! uv pip install jaxtyping sentencepiece 
-    # ! uv pip install kagglehub plotly treescope
-f"Installed with {phase}"
+# #! uv pip install --no-deps 'flax>=0.10.4'
+#
+### Follows https://flax.readthedocs.io/en/latest/nnx_basics.html
+#for phase in "nothing-new-required installations-performed".split(' '):
+#  try:
+#    from flax import nnx
+#    import jaxtyping
+#    import sentencepiece as spm
+#    from omegaconf import OmegaConf    
+#    break # This worked!
+#    # ?? cannot import name 'Key' from 'flax.typing' (/home/andrewsm/env311/lib/python3.11/site-packages/flax/typing.py)
+#  except Exception as e:
+#    print(type(e), e)
+#    #! uv pip install --no-deps -U flax
+# #    ! uv pip install jaxtyping sentencepiece 
+# #    ! uv pip install kagglehub plotly treescope
+#f"Installed with {phase}"
 
 # +
-from omegaconf import OmegaConf
+#from omegaconf import OmegaConf
+#
+#config = OmegaConf.load(f'{BASE}/config.yaml')
+#for extra in [f'{BASE}/config_secrets.yaml']:
+#  if os.path.isfile(extra):
+#    config = OmegaConf.merge(config, OmegaConf.load(extra))
 
-config = OmegaConf.load(f'{BASE}/config.yaml')
-for extra in [f'{BASE}/config_secrets.yaml']:
-  if os.path.isfile(extra):
-    config = OmegaConf.merge(config, OmegaConf.load(extra))
+import aha_library.config
+config = aha_library.config.read(BASE)  
+aha_library.config.load_kaggle_secrets(config) # sets up kaggle environment variables 
     
 config.model.GEMMA_VARIANT, config.model.kaggle_id, config.model.kaggle_dir, config.model.weights_dir
 # -
@@ -123,13 +129,11 @@ from IPython.display import clear_output  # Makes the kaggle download less disgu
 
 weights_dir = config.model.weights_dir
 if not os.path.isdir(weights_dir):   # Only prompt for download if there's nothing there...
-  os.environ['KAGGLE_USERNAME'] = config.kaggle.username
-  os.environ['KAGGLE_KEY'] = config.kaggle.key
-
+  #os.environ['KAGGLE_USERNAME'] = config.kaggle.username
+  #os.environ['KAGGLE_KEY'] = config.kaggle.key
   #from google.colab import userdata
   #for k in 'KAGGLE_USERNAME|KAGGLE_KEY'.split('|'):
   #  os.environ[k]=userdata.get(k)
-
   import kagglehub
   kagglehub.whoami()
   weights_dir = kagglehub.model_download(config.model.kaggle_id)
@@ -143,6 +147,8 @@ if not os.path.isdir(weights_dir):   # Only prompt for download if there's nothi
 #weights_dir  # '/home/andrewsm/.cache/kagglehub/models/google/gemma-2/flax/gemma2-2b/1'
 # ! echo {weights_dir} && ls -l {weights_dir}
 # -
+
+STOP HERE : GO TO 2_nnx_gemma
 
 # ## Get Gemma Library (converted to NNX by Google)
 #

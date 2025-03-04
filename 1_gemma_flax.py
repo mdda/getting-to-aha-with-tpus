@@ -25,6 +25,12 @@ REPO_NAME, BASE = 'getting-to-aha-with-tpus', './'
 if not REPO_NAME in os.getcwd():
   # ! git clone https://github.com/mdda/getting-to-aha-with-tpus.git
   BASE = f'./{REPO_NAME}'
+sys.path.append(BASE)  
+
+import aha_library.platform
+backend = aha_library.platform.detect()
+uv_cmd, pip_install_jax = aha_library.platform.jax_pip_install_str(backend)
+backend, pip_install_jax
 
 # +
 # # ! pip install -q git+https://github.com/google-deepmind/gemma.git
@@ -34,19 +40,20 @@ if not REPO_NAME in os.getcwd():
 
 ## Started with bare venv = '~/flax_gemma/'
 # #! uv pip install plotly treescope
-# ! uv pip install etils msgpack absl-py rich tqdm
-# ! uv pip install flax einops
-# ! uv pip install kauldron
-# ! uv pip install numpy
+# ! {uv_cmd} pip install etils msgpack absl-py rich tqdm
+# ! {uv_cmd} pip install flax einops
+# ! {uv_cmd} pip install kauldron
+# #! {uv_cmd} pip install numpy
 #"DONE"
-# -
 
-import numpy as np
-def dummy_npwarn_decorator_factory():
-  def npwarn_decorator(x):
-    return x
-  return npwarn_decorator
-np._no_nep50_warning = getattr(np, '_no_nep50_warning', dummy_npwarn_decorator_factory)
+# +
+#import numpy as np
+#def dummy_npwarn_decorator_factory():
+#  def npwarn_decorator(x):
+#    return x
+#  return npwarn_decorator
+#np._no_nep50_warning = getattr(np, '_no_nep50_warning', dummy_npwarn_decorator_factory)
+# -
 
 #NOPE#! git clone -b gemma2-2b https://github.com/mdda/flax.git {repo_gemma_nnx_dir}/flax
 if False:
@@ -68,9 +75,10 @@ import treescope
 os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"]="1.00"
 jax.default_backend()
 
-from omegaconf import OmegaConf
-config = OmegaConf.load('./config.yaml')
-config.model.kaggle_id, config.model.weights_dir, config.model.ckpt_path
+# +
+#from omegaconf import OmegaConf
+#config = OmegaConf.load('./config.yaml')
+#config.model.kaggle_id, config.model.weights_dir, config.model.ckpt_path
 
 # +
 #gm.ckpts.CheckpointPath.GEMMA2_2B_IT

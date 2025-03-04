@@ -18,9 +18,6 @@
 ### https://www.kaggle.com/code/matthewdwatson/gemma-2-tpu-fine-tuning/notebook
 # -
 
-# ! uv pip install -U keras-hub tensorflow-text
-# ! uv pip install -U tensorflow-cpu
-
 # Common imports
 import os, sys, time
 
@@ -33,15 +30,26 @@ BASE
 
 import aha_library.platform
 backend = aha_library.platform.detect()
-pip_install = aha_library.platform.jax_pip_install_str(backend)
+uv_cmd, pip_install_jax = aha_library.platform.jax_pip_install_str(backend)
 if backend != 'tpu':
-  # ! uv {pip_install}  # This pulls in the correct JAX for the platform - likely needs updating, even if already in VM image
-backend, pip_install
+  # ! {uv_cmd} {pip_install_jax}  # This pulls in the correct JAX for the platform - likely needs updating, even if already in VM image
+backend, pip_install_jax
+
+# This has to be done in this order, apparently...
+# ! {uv_cmd} pip install -q -U tensorflow-cpu
+# ! {uv_cmd} pip install -q -U keras-hub tensorflow-text
+# ! {uv_cmd} pip install -q -U keras
+
+# ! {uv_cmd} pip install -q OmegaConf
 
 # +
-# base Colab TPU machine (no JAX upgrade)
-# jax==0.4.33 jaxlib==0.4.33
-# libtpu==2.18.0 libtpu-nightly==0.1.dev20240916+nightly
+# DEFAULTS on Colab TPU v5-1 :
+# Using Python 3.11.11 environment at: /usr
+#   jax==0.4.33 jaxlib==0.4.33
+#   keras==3.8.0 tf-keras==2.18.0
+#   numpy==1.26.4
+#   tpu-info libtpu==2.18.0 libtpu-nightly==0.1.dev20240916+nightly
+#   torch-xla
 # -
 
 # The Keras 3 distribution API is only implemented for the JAX backend for now
@@ -52,7 +60,7 @@ os.environ["KERAS_BACKEND"] = "jax"
 import jax
 jax.devices()
 # CUDA : [CudaDevice(id=0)]
-# TPU : ...
+# TPU : [TpuDevice(id=0, process_index=0, coords=(0,0,0), core_on_chip=0)]
 
 import keras
 import keras_hub
@@ -65,7 +73,7 @@ if backend=='gpu':
   # Doesn't seem to change anything...
   #keras.mixed_precision.set_global_policy("mixed_bfloat16") # ... try again...
   # CAUSES : XlaRuntimeError: UNIMPLEMENTED: Unsupported algorithm on the current device(s): ALG_DOT_BF16_BF16_F32
-  keras.config.set_floatx("float16")    # TRY OUT!
+  keras.config.set_floatx("float16")    # TRY THIS OUT ON GPU!
   pass
 if backend=='tpu':
   keras.config.set_floatx("bfloat16")  
@@ -107,10 +115,11 @@ keras.distribution.set_distribution(model_parallel)
 # +
 import aha_library.config
 config = aha_library.config.read(BASE)  
-aha_library.load_kaggle_secrets(config) # sets up kaggle environment variables 
+aha_library.config.load_kaggle_secrets(config) # sets up kaggle environment variables 
 
 # https://keras.io/keras_hub/api/models/gemma/gemma_causal_lm/
-gemma_lm = keras_hub.models.GemmaCausalLM.from_preset(model_name)  #  Download of ~5Gb, nice formatting
+gemma_lm = keras_hub.models.GemmaCausalLM.from_preset(model_name)  
+#  Download of ~5Gb, nice formatting (implies that actual download is in 16-bit format...)
 
 # +
 #gemma_lm.quantize("float16")  # Try this... :: NOPE - expects int8...
@@ -156,12 +165,12 @@ gemma_lm.compile(
 
 t0=time.time()
 print(gemma_lm.generate("How can I plan a trip to Europe?", max_length=100))
-print(f"{(time.time()-t0)*1000.:.2f}ms") # Includes jit?
+print(f"{(time.time()-t0)*1000.:.2f}ms") # Includes jit? ... >20secs
 
 # Time-test the sampling...
 t0=time.time()
 print(gemma_lm.generate("How can I plan a trip to Europe?", max_length=100))
-print(f"{(time.time()-t0)*1000.:.2f}ms") # T4 ~ 64 ms/tok (32-bit), 91 ms/tok (16-bit?)
+print(f"{(time.time()-t0)*1000.:.2f}ms") # T4 ~ 64 ms/tok (32-bit), 91 ms/tok (16-bit?), TPU v5-1 ~ 7 ms/tok
 
 
 
@@ -203,6 +212,10 @@ gemma_lm.summary()
 #   Total params: 2,620,199,168 (9.76 GB)
 #   Trainable params: 5,857,280 (22.34 MB)
 #   Non-trainable params: 2,614,341,888 (9.74 GB)
+# TPU v5-1 (JAX backend)
+#    Total params: 2,620,199,168 (4.88 GB)
+#    Trainable params: 5,857,280 (11.17 MB)
+#    Non-trainable params: 2,614,341,888 (4.87 GB)
 
 # +
 #gemma_lm.fit(data, epochs=1, batch_size=4)
