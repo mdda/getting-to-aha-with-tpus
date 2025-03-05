@@ -15,7 +15,7 @@
 
 * DONE Debug flax on colab (GDM gemma = flax.linen)
 
-* Try on TPU Colab
+* Try notebook on TPU Colab
   + Colab Stats
     - Usage rate: approximately 4.5 per hour
     - System RAM : 2.2 / 47.1 GB
@@ -24,7 +24,7 @@
   + DONE Look at memory available = 48G?
   + DONE Integrate Colab findings into repo version of `0_setup.py`
   + DONE Find usable indicators for being a TPU machine (for auto-detection)
-  + Count of TPU cores = 1?
+  + DONE Count of TPU cores = 1?
     -                       TPU_WORKER_ID='0'
     -                       COLAB_TPU_1VM='1'
     -                  TPU_SKIP_MDS_QUERY='1'
@@ -34,18 +34,42 @@
     -                TPU_WORKER_HOSTNAMES='localhost'
 
 * High mem GCP instance for `nnx` version
-  + Is 64Gb enough? 
+  + DONE Is 64Gb enough? 
     - NO : `jit` itself consumes 60Gb of RAM
-  + Can jit be better located for lower memory consumption?
+  + DONE Can jit be better located for lower memory consumption?
     - NO : That was just for Transformer logits forward pass
   + Add probabalistic SamplerPlugin idea
     - Why???
 
-* Write up +/- points of different directions in README
+* DONE Write up +/- points of different directions in README
+
+* DONE Get keras/JAX working on Colab TPU v5-1
+  + NB: do not use `uv`, even though it *looks like* it works
+
+* Add to keras/JAX code:
+  - Can keras do Gradient Accumulation?
+    + https://keras.io/api/optimizers/adamw/ : `gradient_accumulation_steps`
+  - Add dataset generation 
+    + "A Python generator function yielding (inputs, targets) or (inputs, targets, sample_weights)."
+    + Sampling: (inputs:[], )
+    + Training: (inputs:[], targets:[], sample_weights: [] ) # sample_weights=(reward=advantage)
+    + Consider : `train_on_batch` method (regular `.fit()` has a lot more machinery)
+  - Add data parallel option / different DeviceMesh
+    + https://keras.io/api/distribution/model_parallel/
+    + more likely applicable for 2B models - we just want fast output, model fits in 16Gb RAM easily
+  - Add code to run a batch of n (divisible by 8) at once
+  - How many samples can be trained at once in 16Gb device?
+  - Add new loss class : NegativeLogProb(use_logits=True)
+    + Actually no need, `from_logits` looks like it is the gemma2 default output
+      * for `(y_true, y_pred, from_logits=True)` loss input
+  - create loop of generate-score-train, etc
 
 
-* Try on 'regular' TPU
-  + Write up for Sprint
+* Test keras/JAX on Kaggle v3-8
+
+* Test keras/JAX on 'regular' GCP TPU
+
+
 
 
 * Debug printing (even works in jitted code, though it may be out-of-order)

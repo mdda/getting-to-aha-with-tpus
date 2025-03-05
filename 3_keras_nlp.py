@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.7
+#       jupytext_version: 1.16.4
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -79,7 +79,7 @@ if backend=='tpu':
   keras.config.set_floatx("bfloat16")  
 
 # +
-n_devices, model_dim, batch_dim = len(jax.devices()), "model", "batch"
+n_devices, batch_dim, model_dim = len(jax.devices()), "batch", "model"
 
 device_mesh_model_parallel = keras.distribution.DeviceMesh(
   (1, n_devices),   # model spread over devices, same data for all
@@ -202,6 +202,7 @@ print(f"{(time.time()-t0)*1000.:.2f}ms") # T4 ~ 64 ms/tok (32-bit), 39 ms/tok (1
 
 # +
 gemma_lm.preprocessor.sequence_length = 512
+# Can add sampler with other stuff : https://keras.io/keras_hub/api/base_classes/causal_lm/
 gemma_lm.compile(
   loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
   optimizer=keras.optimizers.Adam(learning_rate=5e-5),
