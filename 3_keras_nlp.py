@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.16.7
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -132,10 +132,8 @@ gemma_lm = keras_hub.models.GemmaCausalLM.from_preset(model_name)
 decoder_block_1 = gemma_lm.backbone.get_layer('decoder_block_1')
 print(type(decoder_block_1))
 for variable in decoder_block_1.weights:
-  if n_devices>1:
-    print(f'{variable.path:<48}  {str(variable.shape):<14}  {str(variable.value.sharding.spec)}') # 
-  else:
-    print(f'{variable.path:<48}  {str(variable.shape):<14}  {str(variable.value.sharding)}') # SingleDeviceSharding    
+  spec = variable.value.sharding.spec if n_devices>1 else variable.value.sharding # SingleDeviceSharding    
+  print(f'{variable.path:<50}  {str(variable.shape):<14}  {str(spec)}')
 
 # ## Add LoRA
 
@@ -197,31 +195,35 @@ The reasoning process and answer are enclosed within <reasoning> </reasoning> an
 
 
 import aha_library.dataset.countdown as dataset
-generate_puzzle(seed=1, as_structure=True)  # Set the seed, show an example
+dataset.generate_puzzle(seed=1, as_structure=True)  # Set the seed, show an example
 # { numbers=' '.join(str(n) for n in sorted(numbers)), target=str(target), proof=expression, }
 
 group_size = 8
 
 
-def get_item(difficulty=6):
+def get_item(difficulty=3):
+  if difficulty<4: # Pretty easy...
+    return dataset.generate_puzzle(as_structure=True, n_small=3, n_large=1, target_min=10, target_max=500)
   # The following is difficulty 6 (i.e. human hardness)
-  return generate_puzzle(as_structure=True, n_small=4, n_large=2, target_min=100, target_max=999)
+  return dataset.generate_puzzle(as_structure=True, n_small=4, n_large=2, target_min=100, target_max=999)
 
 
 TASK_SPECIFIC_INSTRUCTIONS = """
-The answer must combine some (or all) of the contestant numbers using only '+', '-', '*' and '/' to make the target number exactly.
+Welcome to the Countdown Numbers Game!
+Your answer must combine some (or all) of the Contestant Numbers using only '+', '-', '*' and '/' to make the Target Number exactly.
 """.strip()
 
 
 def item_add_prompt(item):
   item['prompt'] = (  # This is Alpaca-style (for a base model)
     f"### Instruction:\n{R1_STYLE_SYSTEM_PROMPT}\n{TASK_SPECIFIC_INSTRUCTIONS}\n" +
-    f"### Input:\nContestant numbers: {item['numbers']}. Target: {item['']}\n" +
+    f"### Input:\nContestant Numbers: {item['numbers']}\nTarget Number: {item['target']}\n" +
     f"### Response:\n<reasoning>"
   )
   return
+item = get_item()
 item_add_prompt(item)
-item['prompt']
+print(item['prompt'], item['proof'])
 
 
 def multiply_item_by_n(item, n):
@@ -233,10 +235,12 @@ def get_generate_input(item_arr):
   ]
 
 
-get_generate_input( multiply_item_by_n(item, 4) )
+# +
+#get_generate_input( multiply_item_by_n(item, 4) )
+# -
 
 # Test generation sizes...
-for g in [1,2,4,8,16,32,64]:
+for g in [1,2,4,8,16,32,40,48,]:   # 64 fails
   item_group = multiply_item_by_n(item, g)
   prompts = get_generate_input(item_group)
   t0=time.time()
@@ -244,8 +248,17 @@ for g in [1,2,4,8,16,32,64]:
   print(f"{g=:2d} : {(time.time()-t0)*1000.:.2f}ms - with compilation") 
   t0=time.time()
   generations = gemma_lm.generate(prompts, max_length=max_completion_length)
-  print(f"{g=:2d} : {(time.time()-t0)*1000.:.2f}ms - after jit")
-  print("\n---\n".join(generations))
+  print(f"{g=:2d} : {(time.time()-t0)*1000.:.2f}ms total = {(time.time()-t0)*1000./g:.2f}ms each - after jit")
+  #print("\n---\n".join(generations))
+#g= 1 : 28346.46ms - with compilation   g= 1 :  6872.51ms - after jit  
+#g= 2 : 33250.36ms - with compilation   g= 2 : 13764.17ms - after jit
+#g= 4 : 36556.85ms - with compilation   g= 4 : 15392.34ms total = 3848.09ms each - after jit
+#g= 8 : 41973.12ms - with compilation   g= 8 : 17694.56ms total = 2211.82ms each - after jit
+#g=16 : 52507.11ms - with compilation   g=16 : 23224.15ms total = 1451.51ms each - after jit
+#g=32 : 75464.74ms - with compilation   g=32 : 35000.94ms total = 1093.78ms each - after jit
+#g=40 : 87707.46ms - with compilation   g=40 : 40422.75ms total = 1010.57ms each - after jit
+#g=48 : 98845.31ms - with compilation   g=48 : 46245.67ms total = 963.45ms each - after jit
+#g=64 == OOM (on 16Gb T4)
 
 
 

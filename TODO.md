@@ -52,13 +52,13 @@
     + more likely applicable for 2B models - we just want fast output, model fits in 16Gb RAM easily
   - Add dataset generation
     + "A Python generator function yielding (inputs, targets) or (inputs, targets, sample_weights)."
-    + Sampling: (inputs:[], ) :: `generate_on_batch` ?
+    + DONE: Sampling: [""]xN :: `generate`
     + Training: (inputs:[], targets:[], sample_weights: [] ) # sample_weights=(reward=advantage)
     + Consider : `train_on_batch` method (regular `.fit()` has a lot more machinery)
       - what happens to gradient accumulation? - seems to be taken care of by optimiser
       - For these simple functions, don't even need a generator, etc : Just a data tuple
   - Add code to sample a batch of n (divisible by 8) at once
-    + How many samples can be trained at once in 16Gb device?
+    + DONE: How many samples can be trained at once in 16Gb device? (32 easily)
     + Critical for decisions about batching:
       * Group size = 16 seems like a good idea
       * Batch size = 4 groups? (from Qwen 0.5B example) 
