@@ -39,10 +39,12 @@
     - Library has LoRA and sharding
   + Negatives:
     - Flax/linen is (according to the `nnx` docs) backward-looking
-    - Heavy dependency on `kauldron` for training (and [LoRA]https://github.com/google-deepmind/gemma/blob/main/examples/lora.py#L53, [sharding](https://github.com/google-deepmind/gemma/blob/main/examples/sharding.py#L44), etc)
+    - Heavy dependency on `kauldron` for training (and
+      [LoRA](https://github.com/google-deepmind/gemma/blob/main/examples/lora.py#L53),
+      [sharding](https://github.com/google-deepmind/gemma/blob/main/examples/sharding.py#L44), etc)
       * Undermines the goal of using plain, readable code 
     - GDM `gemma` library transformer [Sampler is greedy-only](https://github.com/google-deepmind/gemma/blob/main/gemma/sampler.py#L145) 
-      * Monkey-patching this functionality (which is deep inside the class) would smell bad
+      * Monkey-patching this functionality (which is deep inside the `Sampler` class) would smell bad
       * So adding library features would have to be done before beginning
 * [`pytorch-gemma`](https://github.com/google/gemma_pytorch/) library for PyTorch/XLA
   + Positives:
@@ -52,17 +54,18 @@
   + Negatives:
     - Does not appear to include LoRA
       * Though may be compatible with PEFT (needs testing)
-      * How does this interact with sharding?  Eeek
+      * How does auto-LoRA interact with sharding?  Eeek
     - While PyTorch XLA is clearly ['real'](https://github.com/google/gemma_pytorch/blob/main/scripts/run_xla.py#L33) ...
       * Need to test whether XLA code can get 'compiled' in a similar way to JAX `jit`  
 * [Keras gemma implementation](https://keras.io/keras_hub/api/models/gemma/gemma_causal_lm/) using JAX backend
   + Positives:
     - Ecosystem appears ready for CPU, GPU and [TPU](https://www.kaggle.com/code/matthewdwatson/gemma-2-tpu-fine-tuning)
-    - Includes LoRA, more sophisicated sampling and distribution
+    - Includes LoRA, more sophisicated sampling and distribution over TPUs
     - Actually *proven to work* on TPUs via Colab (in this Repo)
   + Negatives:
     - IMHO, Keras is perceived as being somewhat *lame* vs other frameworks
-    - Still need to test whether fancy sampling, fancy distribution strategy, and custom training step (GRPO) can be implemented *at the same time*
+    - Still need to test whether fancy sampling, fancy distribution strategy, and custom training step (GRPO)
+      can be implemented *at the same time*
 
 So far: 
 * `nnx` has suceeded in:
