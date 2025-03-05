@@ -68,11 +68,11 @@ def random_expression_tree(numbers, leave_out_frac_max=.2):
   return expression[1:-1], value  # Remove outermost brackets
 
 
-def generate_puzzle(seed=None, target_min=100, target_max=999, as_structure=False):
+def generate_puzzle(seed=None, n_small=4, n_large=2, target_min=100, target_max=999, as_structure=False):
   if seed is not None: 
     random.seed(seed)
   while True: # We'll definitely (!) find one eventually
-    numbers = generate_numbers()
+    numbers = generate_numbers(n_small=n_small, n_large=n_large)
     #expression, target = random_expression_stack(numbers)
     expression, target = random_expression_tree(numbers) # More expressive
     #print(sorted(numbers), target, expression)

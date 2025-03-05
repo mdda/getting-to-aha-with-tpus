@@ -47,23 +47,33 @@
   + NB: do not use `uv`, even though it *looks like* it works
 
 * Add to keras/JAX code:
-  - Can keras do Gradient Accumulation?
-    + https://keras.io/api/optimizers/adamw/ : `gradient_accumulation_steps`
-  - Add dataset generation 
-    + "A Python generator function yielding (inputs, targets) or (inputs, targets, sample_weights)."
-    + Sampling: (inputs:[], )
-    + Training: (inputs:[], targets:[], sample_weights: [] ) # sample_weights=(reward=advantage)
-    + Consider : `train_on_batch` method (regular `.fit()` has a lot more machinery)
-  - Add data parallel option / different DeviceMesh
+  - TEST : Add data parallel option / different DeviceMesh
     + https://keras.io/api/distribution/model_parallel/
     + more likely applicable for 2B models - we just want fast output, model fits in 16Gb RAM easily
-  - Add code to run a batch of n (divisible by 8) at once
-  - How many samples can be trained at once in 16Gb device?
+  - Add dataset generation
+    + "A Python generator function yielding (inputs, targets) or (inputs, targets, sample_weights)."
+    + Sampling: (inputs:[], ) :: `generate_on_batch` ?
+    + Training: (inputs:[], targets:[], sample_weights: [] ) # sample_weights=(reward=advantage)
+    + Consider : `train_on_batch` method (regular `.fit()` has a lot more machinery)
+      - what happens to gradient accumulation? - seems to be taken care of by optimiser
+      - For these simple functions, don't even need a generator, etc : Just a data tuple
+  - Add code to sample a batch of n (divisible by 8) at once
+    + How many samples can be trained at once in 16Gb device?
+    + Critical for decisions about batching:
+      * Group size = 16 seems like a good idea
+      * Batch size = 4 groups? (from Qwen 0.5B example) 
+  - Can keras do Gradient Accumulation?
+    + https://keras.io/api/optimizers/adamw/ : `gradient_accumulation_steps`
+    + useful when your batch size is very small
+    + Learning rate schedules will look at "real" iterations value (optimizer steps)
   - Add new loss class : NegativeLogProb(use_logits=True)
     + Actually no need, `from_logits` looks like it is the gemma2 default output
       * for `(y_true, y_pred, from_logits=True)` loss input
+      * ?? Need another input (?) in order to get group# into training step
+        - NO (already accounted for in advantage calculation)
   - create loop of generate-score-train, etc
-
+  - Test on GCP T4 (for a start)
+  - Test on Colab TPU v5-1
 
 * Test keras/JAX on Kaggle v3-8
 

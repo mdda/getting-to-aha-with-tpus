@@ -73,7 +73,8 @@ if backend=='gpu':
   # Doesn't seem to change anything...
   #keras.mixed_precision.set_global_policy("mixed_bfloat16") # ... try again...
   # CAUSES : XlaRuntimeError: UNIMPLEMENTED: Unsupported algorithm on the current device(s): ALG_DOT_BF16_BF16_F32
-  keras.config.set_floatx("float16")    # TRY THIS OUT ON GPU!
+  keras.config.set_floatx("float16")    
+  # WORKS! : Model apparently loads/runs in 16-bit format
   pass
 if backend=='tpu':
   keras.config.set_floatx("bfloat16")  
@@ -81,20 +82,22 @@ if backend=='tpu':
 # +
 n_devices, batch_dim, model_dim = len(jax.devices()), "batch", "model"
 
-device_mesh_model_parallel = keras.distribution.DeviceMesh(
-  (1, n_devices),   # model spread over devices, same data for all
+device_mesh = keras.distribution.DeviceMesh(
+  #(1, n_devices),   # model spread over devices, same data for all
+  (n_devices, 1),   # model on every device, different data for each one
   [batch_dim, model_dim],
   devices=keras.distribution.list_devices(),
 )
-device_mesh_model_parallel
+device_mesh
 
 # +
-layout_map = keras.distribution.LayoutMap(device_mesh_model_parallel)
+layout_map = keras.distribution.LayoutMap(device_mesh)
 
 model_name = "gemma2_2b_en"
 #model_name = "gemma2_9b_en"
 
-# Weights that match 'token_embedding/embeddings' will be sharded on 8 TPUs
+# Layout is appropriate for 'gemma2_9b_en' (given in example code)
+# Weights that match 'token_embedding/embeddings' will be sharded model_parallel-wise across TPUs
 layout_map["token_embedding/embeddings"] = (model_dim, None)
 # Regex to match against the query, key and value matrices in attention layers
 layout_map["decoder_block.*attention.*(query|key|value)/kernel"] = (model_dim, None, None)
@@ -105,12 +108,12 @@ layout_map["decoder_block.*ffw_linear/kernel"] = (model_dim, None)
 model_name
 
 # +
-model_parallel = keras.distribution.ModelParallel(
+model_parallel_distribution = keras.distribution.ModelParallel(
   layout_map=layout_map,
   batch_dim_name=batch_dim,
 )
 
-keras.distribution.set_distribution(model_parallel)
+keras.distribution.set_distribution(model_parallel_distribution)
 
 # +
 import aha_library.config
@@ -138,7 +141,7 @@ for variable in decoder_block_1.weights:
 
 # Enable LoRA for the model and set the LoRA rank to 8.
 gemma_lm.backbone.enable_lora(rank=8) 
-# This appears to make the sampling regenerate code
+# This appears to make the sampling regenerate compiled code (seems reasonable)
 
 # ## Inference test
 
@@ -174,28 +177,82 @@ print(f"{(time.time()-t0)*1000.:.2f}ms") # T4 ~ 64 ms/tok (32-bit), 39 ms/tok (1
 
 
 
-# ## Quick dataset 
-# ####  Refillable?
+# ## dataset 
 
 # +
-#import json
-#data = []
-#with open('/kaggle/input/databricks-dolly-15k/databricks-dolly-15k.jsonl') as file:
-#    for line in file:
-#        features = json.loads(line)
-#        # Filter out examples with context, to keep it simple.
-#        if features["context"]:
-#            continue
-#        # Format the entire example as a single string.
-#        template = "Instruction:\n{instruction}\n\nResponse:\n{response}"
-#        data.append(template.format(**features))
-#
-# Truncate our data to speed up training.
-#data = data[:2500]
+max_prompt_length, max_completion_length = 256, 512
+
+R1_STYLE_SYSTEM_PROMPT = """
+A conversation between User and Assistant. The user poses a countdown task problem, and the Assistant solves it.
+The assistant first thinks about the reasoning process in the mind and then provides the user with the answer.
+The reasoning process and answer are enclosed within <reasoning> </reasoning> and <answer> </answer> tags, respectively, i.e.,
+<reasoning> reasoning process here </reasoning>
+<answer> answer here </answer>
+""".strip()
+
 # +
-# Python generator?
+# Python generator? NO NEED - can do it in batches
 # "Instruction:\n{instruction}\n\nResponse:\n{response}"
 # -
+
+
+import aha_library.dataset.countdown as dataset
+generate_puzzle(seed=1, as_structure=True)  # Set the seed, show an example
+# { numbers=' '.join(str(n) for n in sorted(numbers)), target=str(target), proof=expression, }
+
+group_size = 8
+
+
+def get_item(difficulty=6):
+  # The following is difficulty 6 (i.e. human hardness)
+  return generate_puzzle(as_structure=True, n_small=4, n_large=2, target_min=100, target_max=999)
+
+
+TASK_SPECIFIC_INSTRUCTIONS = """
+The answer must combine some (or all) of the contestant numbers using only '+', '-', '*' and '/' to make the target number exactly.
+""".strip()
+
+
+def item_add_prompt(item):
+  item['prompt'] = (  # This is Alpaca-style (for a base model)
+    f"### Instruction:\n{R1_STYLE_SYSTEM_PROMPT}\n{TASK_SPECIFIC_INSTRUCTIONS}\n" +
+    f"### Input:\nContestant numbers: {item['numbers']}. Target: {item['']}\n" +
+    f"### Response:\n<reasoning>"
+  )
+  return
+item_add_prompt(item)
+item['prompt']
+
+
+def multiply_item_by_n(item, n):
+  return [ item for _ in range(n) ]
+def get_generate_input(item_arr):
+  return [
+    item['prompt']
+    for item in item_arr
+  ]
+
+
+get_generate_input( multiply_item_by_n(item, 4) )
+
+# Test generation sizes...
+for g in [1,2,4,8,16,32,64]:
+  item_group = multiply_item_by_n(item, g)
+  prompts = get_generate_input(item_group)
+  t0=time.time()
+  gemma_lm.generate(prompts, max_length=max_completion_length)
+  print(f"{g=:2d} : {(time.time()-t0)*1000.:.2f}ms - with compilation") 
+  t0=time.time()
+  generations = gemma_lm.generate(prompts, max_length=max_completion_length)
+  print(f"{g=:2d} : {(time.time()-t0)*1000.:.2f}ms - after jit")
+  print("\n---\n".join(generations))
+
+
+
+
+
+
+
 
 
 # ## Training test
