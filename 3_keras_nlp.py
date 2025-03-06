@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.16.7
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -21,12 +21,18 @@
 # Common imports
 import os, sys, time
 
+# %load_ext autoreload
+# %autoreload 2
+
 REPO_NAME, BASE = 'getting-to-aha-with-tpus', './'
 if not REPO_NAME in os.getcwd():
   # ! git clone https://github.com/mdda/getting-to-aha-with-tpus.git
   BASE = f'./{REPO_NAME}'
 sys.path.append(BASE)
 BASE
+
+import aha_library
+#aha_library.beep()
 
 import aha_library.platform
 backend = aha_library.platform.detect()
@@ -154,15 +160,13 @@ print(gemma_lm.generate("How can I plan a trip to Europe?", max_length=100))
 # I'm looking for a trip that is not too crowded, but also not too empty. 
 # I'm looking for a trip that is not too hot, but also not too cold. 
 # -
-
-
-
 ## Test Sampler too
 gemma_lm.compile(
   #sampler = keras_hub.samplers.GreedySampler()
   #sampler = keras_hub.samplers.TopPSampler(p=0.1, k=1000)  # setting k reduces number of token_idx to sort over
   sampler = keras_hub.samplers.RandomSampler(temperature=0.7)
 )
+gemma_lm.sampler
 
 t0=time.time()
 print(gemma_lm.generate("How can I plan a trip to Europe?", max_length=100))
@@ -173,7 +177,7 @@ t0=time.time()
 print(gemma_lm.generate("How can I plan a trip to Europe?", max_length=100))
 print(f"{(time.time()-t0)*1000.:.2f}ms") # T4 ~ 64 ms/tok (32-bit), 39 ms/tok (16-bit), TPU v5-1 ~ 7 ms/tok
 
-
+aha_library.beep()
 
 # ## dataset 
 
@@ -216,7 +220,7 @@ Your answer must combine some (or all) of the Contestant Numbers using only '+',
 
 def item_add_prompt(item):
   item['prompt'] = (  # This is Alpaca-style (for a base model)
-    f"### Instruction:\n{R1_STYLE_SYSTEM_PROMPT}\n{TASK_SPECIFIC_INSTRUCTIONS}\n" +
+    f"### Instruction:\n{R1_STYLE_SYSTEM_PROMPT}\n\n{TASK_SPECIFIC_INSTRUCTIONS}\n" +
     f"### Input:\nContestant Numbers: {item['numbers']}\nTarget Number: {item['target']}\n" +
     f"### Response:\n<reasoning>"
   )
@@ -227,7 +231,7 @@ print(item['prompt'], item['proof'])
 
 
 def multiply_item_by_n(item, n):
-  return [ item for _ in range(n) ]
+  return [ dict(item) for _ in range(n) ]
 def get_generate_input(item_arr):
   return [
     item['prompt']
@@ -262,10 +266,12 @@ if False:
 #g=48 : 98845.31ms - with compilation   g=48 : 46245.67ms total = 963.45ms each - after jit
 #g=64 == OOM (on 16Gb T4)
 
-# ### Reward Functions + Loss
+# ### Reward Functions + Advantages
 # * [Adapted from private Colab Notebook](grpo_qwen-0-5b_single_t4_countdown-mdda)
 
 # +
+import re, textwrap # Standard library
+
 def extract_xml_answer(text: str) -> str:
     try:
         answer = text.split("<answer>")[-1].split("</answer>")[0].strip()
@@ -278,7 +284,7 @@ reward_func_pattern = r"^<reasoning>(?:(?!</reasoning>).)*</reasoning>\n*<answer
 def format_reward_func(item_arr, **kwargs) -> list[float]:
   """Reward function that checks whether each response has the correct format."""
   return [ 
-    1.0 if bool(re.match(reward_func_pattern, item['response']).strip()) else 0.0 
+    1.0 if bool(re.match(reward_func_pattern, item['response'].strip())) else 0.0 
     for item in item_arr 
   ]
 
@@ -292,7 +298,7 @@ def correctness_reward_func(item_arr) -> list[float]:
     # For each item, scoring the answer requires the 'target' and 'numbers' (to verify the solution is not cheating)
     ground_truth = dict(target=int(item['target']), numbers=[int(n) for n in item['numbers'].split(' ')])
     #print(idx, extracted_response, ground_truth)
-    score = aha_dataset.countdown.compute_score(
+    score = dataset.compute_score(
       f"Assistant:<answer>{extracted_response}</answer>", # re-fake response for standardised parsing
       ground_truth, format_score=0, score=1,
     ) #  , do_print=True
@@ -302,7 +308,7 @@ def correctness_reward_func(item_arr) -> list[float]:
     item = item_arr[0]
     response_wrapped = '\n'.join('\n'.join(textwrap.wrap(t, width=80)) for t in item['response'].splitlines() )
     print(f"Question: {item['prompt']}\nTarget: {item['target']} with Proof: {item['proof']}\n"+
-          f"Response: {response_wrapped}\nExtracted: {item['extracted_responses'}")
+          f"Response: {response_wrapped}\nExtracted: {item['extracted_response']}")
     
   print(''.join('✅' if correct else '❌' for correct in correct_arr))
   return [2.0 if correct else 0.0 for correct in correct_arr]
@@ -311,9 +317,9 @@ def correctness_reward_func(item_arr) -> list[float]:
 #                       [[dict(content='<answer>23-14</answer>')],],  # Fake response for parsing
 #                        target=['9',], numbers=['14 23',], proof=["(23-14)",],)
 correctness_reward_func([
-  dict( response='<answer>23-14</answer>', # Fake response for parsing
+  dict( prompt='PROMPT_TEXT', response='<answer>23-14</answer>', # Fake response for parsing
         target='9', numbers='14 23', proof="(23-14)", ),
-)
+])
 
 
 # +
@@ -324,38 +330,38 @@ item_add_group(item, group=0)
 # -
 
 t0=time.time()
-item_group = multiply_item_by_n(item, 8)
+item_group = multiply_item_by_n(item, group_size)
 prompts = get_generate_input(item_group)
 responses = gemma_lm.generate(prompts, max_length=max_completion_length)
-print(f"{n=:2d} : {(time.time()-t0)*1000.:.2f}ms total = {(time.time()-t0)*1000./n:.2f}ms each - after jit")
-for item, response in zip(item_group, responses):
-  item['response'] = response
+for idx, response in enumerate(responses):
+  item_group[idx]['response'] = response
+print(f"{group_size=:2d} : {(time.time()-t0)*1000.:.2f}ms total = {(time.time()-t0)*1000./group_size:.2f}ms each - after jit")
+aha_library.beep()
 
 reward_format      = format_reward_func(item_group)
 reward_correctness = correctness_reward_func(item_group)
 for item, r_fmt, r_cor in zip(item_group, reward_format, reward_correctness):
-  item['reward'] = r_fmt + r_corr
+  item['reward'] = r_fmt + r_cor
 
 # Group Advantage function (all items must be annotated with 'group' and 'reward' 
-#groups = set( item['group'] for item in item_arr )
-#for group in groups:
-#  item
 grouped_items=dict()
 for item in item_group:
-  group=item['group']
+  group=str(item['group'])
   if group not in grouped_items:
-    grouped_items['group']=[]
-  grouped_items['group'].append(item)
+    grouped_items[group]=[]
+  grouped_items[group].append(item)
+#print(f"{list(grouped_items.keys())=}")
 for group, items in grouped_items.items():  # Now each group (whatever order) is in its own list
   rewards = np.array( [ item['reward'] for item in items ], dtype=np.float32 )
   mean = rewards.mean()
   std = rewards.std(mean=mean)
   advantages = (
     rewards*0.0 if std==0.0 else (rewards-mean)/std
-  ).clip(rewards.shape[0])  
-  for idx in advantages.shape[0]:
+  ).clip(0., rewards.shape[0])  
+  #print(f"{rewards=}, {mean=}, {std=}\n{advantages=}")
+  for idx in range(advantages.shape[0]):
     items[idx]['advantage'] = advantages[idx]
-item_group[5]  # An element in the item_group - just to check the advantages have propagated
+item_group[1]  # An element in the item_group - just to check the advantages have propagated
 
 # ## New loss function
 # * Based on: https://x.com/shxf0072/status/1892668791303373042
@@ -366,8 +372,10 @@ item_group[5]  # An element in the item_group - just to check the advantages hav
 #   + i.e. loss = advantage*log_softmax(logits)
 
 # +
-PAD_TOKEN  = gemma_lm.preprocessor.pad_token          # CONST
-VOCAB_SIZE = gemma_lm.preprocessor.vocabulary_size  # CONST
+PAD_TOKEN  = gemma_lm.preprocessor.tokenizer.pad_token_id       # CONST
+VOCAB_SIZE = gemma_lm.preprocessor.tokenizer.vocabulary_size()  # CONST
+
+import jax
 
 # eg: https://keras.io/examples/generative/midi_generation_with_transformer/
 @keras.utils.register_keras_serializable()
@@ -376,15 +384,27 @@ def loss_log_softmax_logits(y_true, y_pred):
   #mask = ops.cast(ops.logical_not(ops.equal(y_true, CONFIG.token_pad)), "float32")
   #y_true = ops.one_hot(ops.cast(y_true, "int32"), CONFIG.vocabulary_size)
   #return ops.categorical_crossentropy(y_true, y_pred, from_logits=True) * mask
-  mask = ops.cast(ops.logical_not(ops.equal(y_true, PAD_TOKEN)), "float")
-  y_true = ops.one_hot(ops.cast(y_true, "int32"), VOCAB_SIZE)
+  #jax.debug.print("y_true.shape {v}", v=y_true.shape)
+  #jax.debug.print("y_true.dtype {v}", v=y_true.dtype)
+  #y_true.shape (Array(8, dtype=int32), Array(512, dtype=int32)) y_true.dtype float16
+  #y_pred.shape (Array(8, dtype=int32), Array(512, dtype=int32), Array(256000, dtype=int32)) y_pred.dtype float16
+  mask = keras.ops.cast(keras.ops.logical_not(keras.ops.equal(y_true, PAD_TOKEN)), y_pred.dtype)
+  y_true = keras.ops.one_hot(keras.ops.cast(y_true, "int32"), VOCAB_SIZE)
+  #mask.shape (Array(8, dtype=int32), Array(512, dtype=int32)) mask.dtype float16
+  #y_true.shape (Array(8, dtype=int32), Array(512, dtype=int32), Array(256000, dtype=int32)) y_true.dtype float16
+  
   # https://keras.io/api/ops/nn/
-  y_probs = ops.log_softmax(y_pred, axis=1)
-  return -y_probs * mask
+  y_probs = keras.ops.log_softmax(y_pred, axis=1)
+  #y_probs.shape (Array(8, dtype=int32), Array(512, dtype=int32), Array(256000, dtype=int32)) y_probs.dtype float16
+  #dot = keras.ops.dot(y_probs, y_true)
+  #jax.debug.print("dot.shape {v}", v=dot.shape)
+  #jax.debug.print("dot.dtype {v}", v=dot.dtype)
+  return -keras.ops.sum(y_probs*y_true, axis=-1) * mask
+  #return 8.
+  # TypeError: broadcast_shapes got incompatible shapes for broadcasting: (8, 512, 256000), (1, 8, 512).
   #OR? https://keras.io/api/ops/numpy/#dot-function  
+PAD_TOKEN, VOCAB_SIZE
 # -
-
-
 
 
 
@@ -394,7 +414,7 @@ def loss_log_softmax_logits(y_true, y_pred):
 gemma_lm.preprocessor.sequence_length = 512
 # Can add sampler with other stuff : https://keras.io/keras_hub/api/base_classes/causal_lm/
 gemma_lm.compile(
-  #loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+  #loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),"
   loss=loss_log_softmax_logits,
   optimizer=keras.optimizers.Adam(learning_rate=5e-5),
   #weighted_metrics=[keras.metrics.SparseCategoricalAccuracy()],
@@ -429,16 +449,20 @@ def get_train_input(item_arr): # (inputs=responses, sample_weights=advantages)
 # https://keras.io/api/models/model_training_apis/
 # (inputs, ..., sample_weights)
 responses, advantages = get_train_input(item_group)
+#responses, advantages
 
 # +
 # https://github.com/keras-team/keras/blob/v3.8.0/keras/src/backend/jax/trainer.py#L710
 t0=time.time()
 
-gemma_lm.fit_batch(x=responses, sample_weight=advantages)
+gemma_lm.train_on_batch(x=responses, sample_weight=advantages)
 
-tms=time.time()-t0)*1000.
-print(f"{len(responses)=:2d} : {(tms:.2f}ms total = {tms/len(responses):.2f}ms each - after jit")
+tms=(time.time()-t0)*1000.
+print(f"{len(responses)=:2d} : {tms:.2f}ms total = {tms/len(responses):.2f}ms each - after jit")
+# +
+#dir(gemma_lm)
 # -
 
+aha_library.beep()
 
 
