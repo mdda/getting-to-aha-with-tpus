@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.7
+#       jupytext_version: 1.16.4
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -137,8 +137,8 @@ for variable in decoder_block_1.weights:
 
 # ## Add LoRA
 
-# Enable LoRA for the model and set the LoRA rank to 8.
-gemma_lm.backbone.enable_lora(rank=8) 
+# Enable LoRA for the model and set the LoRA rank to 16.
+gemma_lm.backbone.enable_lora(rank=16) 
 # This appears to make the sampling regenerate compiled code (seems reasonable)
 
 # ## Inference test
@@ -239,17 +239,19 @@ def get_generate_input(item_arr):
 #get_generate_input( multiply_item_by_n(item, 4) )
 # -
 
-# Test generation sizes...
-for g in [1,2,4,8,16,32,40,48,]:   # 64 fails
-  item_group = multiply_item_by_n(item, g)
-  prompts = get_generate_input(item_group)
-  t0=time.time()
-  gemma_lm.generate(prompts, max_length=max_completion_length)
-  print(f"{g=:2d} : {(time.time()-t0)*1000.:.2f}ms - with compilation") 
-  t0=time.time()
-  generations = gemma_lm.generate(prompts, max_length=max_completion_length)
-  print(f"{g=:2d} : {(time.time()-t0)*1000.:.2f}ms total = {(time.time()-t0)*1000./g:.2f}ms each - after jit")
-  #print("\n---\n".join(generations))
+if False:
+  # Test generation sizes...
+  for n in [1,2,4,8,16,32,40,48,]:   # 64 fails
+    item_group = multiply_item_by_n(item, n)
+    prompts = get_generate_input(item_group)
+    t0=time.time()
+    gemma_lm.generate(prompts, max_length=max_completion_length)
+    print(f"{n=:2d} : {(time.time()-t0)*1000.:.2f}ms - with compilation") 
+    t0=time.time()
+    responses = gemma_lm.generate(prompts, max_length=max_completion_length)
+    print(f"{n=:2d} : {(time.time()-t0)*1000.:.2f}ms total = {(time.time()-t0)*1000./n:.2f}ms each - after jit")
+    #print("\n---\n".join(responses))
+#GCP T4:
 #g= 1 : 28346.46ms - with compilation   g= 1 :  6872.51ms - after jit  
 #g= 2 : 33250.36ms - with compilation   g= 2 : 13764.17ms - after jit
 #g= 4 : 36556.85ms - with compilation   g= 4 : 15392.34ms total = 3848.09ms each - after jit
@@ -260,24 +262,144 @@ for g in [1,2,4,8,16,32,40,48,]:   # 64 fails
 #g=48 : 98845.31ms - with compilation   g=48 : 46245.67ms total = 963.45ms each - after jit
 #g=64 == OOM (on 16Gb T4)
 
+# ### Reward Functions + Loss
+# * [Adapted from private Colab Notebook](grpo_qwen-0-5b_single_t4_countdown-mdda)
+
+# +
+def extract_xml_answer(text: str) -> str:
+    try:
+        answer = text.split("<answer>")[-1].split("</answer>")[0].strip()
+        return answer
+    except IndexError:
+        return ""
+    #return aha_dataset.countdown.extract_solution(text) # This was from the Berkeley original
+
+reward_func_pattern = r"^<reasoning>(?:(?!</reasoning>).)*</reasoning>\n*<answer>(?:(?!</answer>).)*</answer>$"
+def format_reward_func(item_arr, **kwargs) -> list[float]:
+  """Reward function that checks whether each response has the correct format."""
+  return [ 
+    1.0 if bool(re.match(reward_func_pattern, item['response']).strip()) else 0.0 
+    for item in item_arr 
+  ]
+
+# For fn spec, see: https://huggingface.co/docs/trl/main/en/grpo_trainer#using-a-custom-reward-function
+def correctness_reward_func(item_arr) -> list[float]:
+  """Reward function that checks whether each response has the correct answer."""
+  correct_arr=[]
+  for item in item_arr:
+    extracted_response = extract_xml_answer(item['response'])
+    item['extracted_response']=extracted_response
+    # For each item, scoring the answer requires the 'target' and 'numbers' (to verify the solution is not cheating)
+    ground_truth = dict(target=int(item['target']), numbers=[int(n) for n in item['numbers'].split(' ')])
+    #print(idx, extracted_response, ground_truth)
+    score = aha_dataset.countdown.compute_score(
+      f"Assistant:<answer>{extracted_response}</answer>", # re-fake response for standardised parsing
+      ground_truth, format_score=0, score=1,
+    ) #  , do_print=True
+    correct_arr.append(score>0)
+    
+  if True:  # Output the item_arr[0] results
+    item = item_arr[0]
+    response_wrapped = '\n'.join('\n'.join(textwrap.wrap(t, width=80)) for t in item['response'].splitlines() )
+    print(f"Question: {item['prompt']}\nTarget: {item['target']} with Proof: {item['proof']}\n"+
+          f"Response: {response_wrapped}\nExtracted: {item['extracted_responses'}")
+    
+  print(''.join('✅' if correct else '❌' for correct in correct_arr))
+  return [2.0 if correct else 0.0 for correct in correct_arr]
+
+#correctness_reward_func([[dict(content='last_user_prompt_line_here')],],
+#                       [[dict(content='<answer>23-14</answer>')],],  # Fake response for parsing
+#                        target=['9',], numbers=['14 23',], proof=["(23-14)",],)
+correctness_reward_func([
+  dict( response='<answer>23-14</answer>', # Fake response for parsing
+        target='9', numbers='14 23', proof="(23-14)", ),
+)
+
+
+# +
+def item_add_group(item, group=-1):  # The 'group' is an ID - just need to be distinct for each one
+  item['group'] = group
+  
+item_add_group(item, group=0)
+# -
+
+t0=time.time()
+item_group = multiply_item_by_n(item, 8)
+prompts = get_generate_input(item_group)
+responses = gemma_lm.generate(prompts, max_length=max_completion_length)
+print(f"{n=:2d} : {(time.time()-t0)*1000.:.2f}ms total = {(time.time()-t0)*1000./n:.2f}ms each - after jit")
+for item, response in zip(item_group, responses):
+  item['response'] = response
+
+reward_format      = format_reward_func(item_group)
+reward_correctness = correctness_reward_func(item_group)
+for item, r_fmt, r_cor in zip(item_group, reward_format, reward_correctness):
+  item['reward'] = r_fmt + r_corr
+
+# Group Advantage function (all items must be annotated with 'group' and 'reward' 
+#groups = set( item['group'] for item in item_arr )
+#for group in groups:
+#  item
+grouped_items=dict()
+for item in item_group:
+  group=item['group']
+  if group not in grouped_items:
+    grouped_items['group']=[]
+  grouped_items['group'].append(item)
+for group, items in grouped_items.items():  # Now each group (whatever order) is in its own list
+  rewards = np.array( [ item['reward'] for item in items ], dtype=np.float32 )
+  mean = rewards.mean()
+  std = rewards.std(mean=mean)
+  advantages = (
+    rewards*0.0 if std==0.0 else (rewards-mean)/std
+  ).clip(rewards.shape[0])  
+  for idx in advantages.shape[0]:
+    items[idx]['advantage'] = advantages[idx]
+item_group[5]  # An element in the item_group - just to check the advantages have propagated
+
+# ## New loss function
+# * Based on: https://x.com/shxf0072/status/1892668791303373042
+# * Observation (where A is the advantage) :
+#   + grad_R = d_{ A*exp(log_m - log_ref) }
+#   + ...  = A* d_(log_m}
+#   + So   loss = A*log_prop_model has the same gradient...
+#   + i.e. loss = advantage*log_softmax(logits)
+
+# +
+PAD_TOKEN  = gemma_lm.preprocessor.pad_token          # CONST
+VOCAB_SIZE = gemma_lm.preprocessor.vocabulary_size  # CONST
+
+# eg: https://keras.io/examples/generative/midi_generation_with_transformer/
+@keras.utils.register_keras_serializable()
+def loss_log_softmax_logits(y_true, y_pred):
+  """y_true is (batch, time)[token_idx.int32], y_pred is (batch, time, logits)[floatx]"""
+  #mask = ops.cast(ops.logical_not(ops.equal(y_true, CONFIG.token_pad)), "float32")
+  #y_true = ops.one_hot(ops.cast(y_true, "int32"), CONFIG.vocabulary_size)
+  #return ops.categorical_crossentropy(y_true, y_pred, from_logits=True) * mask
+  mask = ops.cast(ops.logical_not(ops.equal(y_true, PAD_TOKEN)), "float")
+  y_true = ops.one_hot(ops.cast(y_true, "int32"), VOCAB_SIZE)
+  # https://keras.io/api/ops/nn/
+  y_probs = ops.log_softmax(y_pred, axis=1)
+  return -y_probs * mask
+  #OR? https://keras.io/api/ops/numpy/#dot-function  
+# -
 
 
 
 
 
-
-
-
-# ## Training test
+# ### Set up trainer / sampler
 
 # +
 gemma_lm.preprocessor.sequence_length = 512
 # Can add sampler with other stuff : https://keras.io/keras_hub/api/base_classes/causal_lm/
 gemma_lm.compile(
-  loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+  #loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+  loss=loss_log_softmax_logits,
   optimizer=keras.optimizers.Adam(learning_rate=5e-5),
-  weighted_metrics=[keras.metrics.SparseCategoricalAccuracy()],
-  sampler = keras_hub.samplers.RandomSampler(temperature=0.7),  # Add this in too
+  #weighted_metrics=[keras.metrics.SparseCategoricalAccuracy()],
+  weighted_metrics="auto", 
+  sampler = keras_hub.samplers.RandomSampler(temperature=0.7),  # Also possible to add in here
 )
 gemma_lm.summary()
 
@@ -295,11 +417,28 @@ gemma_lm.summary()
 #    Total params: 2,620,199,168 (4.88 GB)
 #    Trainable params: 5,857,280 (11.17 MB)
 #    Non-trainable params: 2,614,341,888 (4.87 GB)
+# -
+
+def get_train_input(item_arr): # (inputs=responses, sample_weights=advantages)
+  return [ item['response'] for item in item_arr ], np.array([ item['advantage'] for item in item_arr ], )
+
 
 # +
 #gemma_lm.fit(data, epochs=1, batch_size=4)
 # -
+# https://keras.io/api/models/model_training_apis/
+# (inputs, ..., sample_weights)
+responses, advantages = get_train_input(item_group)
 
+# +
+# https://github.com/keras-team/keras/blob/v3.8.0/keras/src/backend/jax/trainer.py#L710
+t0=time.time()
+
+gemma_lm.fit_batch(x=responses, sample_weight=advantages)
+
+tms=time.time()-t0)*1000.
+print(f"{len(responses)=:2d} : {(tms:.2f}ms total = {tms/len(responses):.2f}ms each - after jit")
+# -
 
 
 
