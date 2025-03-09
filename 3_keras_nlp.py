@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.16.7
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -20,6 +20,7 @@
 
 # Common imports
 import os, sys, time
+import numpy as np
 
 # %load_ext autoreload
 # %autoreload 2
@@ -61,7 +62,7 @@ backend, pip_install_jax
 # The Keras 3 distribution API is only implemented for the JAX backend for now
 os.environ["KERAS_BACKEND"] = "jax"
 # Pre-allocate all TPU memory to minimize memory fragmentation and allocation overhead.
-#os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "1.0"  # Already handled in platform.jax_pip_install_str
+#os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = ".95"  # Already handled in platform.jax_pip_install_str
 
 import jax
 jax.devices()
@@ -379,18 +380,18 @@ import jax
 
 # eg: https://keras.io/examples/generative/midi_generation_with_transformer/
 @keras.utils.register_keras_serializable()
-def loss_log_softmax_logits(y_true_idx, y_pred):
-  """y_true_idx is (batch, time)[token_idx.int32], y_pred is (batch, time, logits)[floatx]"""
+def loss_log_softmax_logits(y_true, y_pred):
+  """y_true is (batch, time)[token_idx.floatx], y_pred is (batch, time, logits)[floatx]"""
   #mask = ops.cast(ops.logical_not(ops.equal(y_true, CONFIG.token_pad)), "float32")
   #y_true = ops.one_hot(ops.cast(y_true_idx, "int32"), CONFIG.vocabulary_size)
   #return ops.categorical_crossentropy(y_true, y_pred, from_logits=True) * mask
   
   #jax.debug.print("y_true_idx.shape {v}", v=y_true_idx.shape)
   #jax.debug.print("y_true.dtype {v}", v=y_true.dtype)
-  #y_true_idx.shape (Array(8, dtype=int32), Array(512, dtype=int32)) y_true.dtype float16
+  #y_true.shape (Array(8, dtype=int32), Array(512, dtype=int32))                             y_true.dtype float16
   #y_pred.shape (Array(8, dtype=int32), Array(512, dtype=int32), Array(256000, dtype=int32)) y_pred.dtype float16
   
-  mask = keras.ops.cast(keras.ops.logical_not(keras.ops.equal(y_true_idx, PAD_TOKEN)), y_pred.dtype)
+  mask = keras.ops.cast(keras.ops.logical_not(keras.ops.equal(y_true, PAD_TOKEN)), y_pred.dtype)
   
   #y_true = keras.ops.one_hot(keras.ops.cast(y_true, "int32"), VOCAB_SIZE)  # TOO BIG
   #return -keras.ops.sum(y_probs*y_true, axis=-1) * mask
@@ -400,6 +401,10 @@ def loss_log_softmax_logits(y_true_idx, y_pred):
   
   # https://keras.io/api/ops/nn/
   y_probs  = keras.ops.log_softmax(y_pred, axis=-1)
+  y_true_idx = keras.ops.cast(y_true, "int32")
+
+
+  # TypeError: take_along_axis indices must be of integer type, got float16
   y_chosen = keras.ops.take_along_axis(y_probs, y_true_idx[..., None], axis=-1)  
   
   #y_probs.shape (Array(8, dtype=int32), Array(512, dtype=int32), Array(256000, dtype=int32)) y_probs.dtype float16
@@ -407,11 +412,14 @@ def loss_log_softmax_logits(y_true_idx, y_pred):
   #jax.debug.print("dot.shape {v}", v=dot.shape)
   #jax.debug.print("dot.dtype {v}", v=dot.dtype)
   
-  return -(y_chosen * mask)  # Loss should be minimised at maximum accepted probability
+  # ValueError: Incompatible shapes for broadcasting: shapes=[(8, 512, 1), (8, 512)]
+  return -(y_chosen * mask[..., None])  # Loss should be minimised at maximum accepted probability
+  # NB: Should average over the token length?  (i.e. sum(mask, axis=-1) ?
   
   #return 8.
   # TypeError: broadcast_shapes got incompatible shapes for broadcasting: (8, 512, 256000), (1, 8, 512).
   #OR? https://keras.io/api/ops/numpy/#dot-function  
+
 PAD_TOKEN, VOCAB_SIZE
 # -
 
@@ -454,11 +462,17 @@ def get_train_input(item_arr): # (inputs=responses, sample_weights=advantages)
 
 # +
 #gemma_lm.fit(data, epochs=1, batch_size=4)
-# -
+# +
 # https://keras.io/api/models/model_training_apis/
 # (inputs, ..., sample_weights)
 responses, advantages = get_train_input(item_group)
 #responses, advantages
+
+train_batch = 2
+responses = responses[:train_batch]
+advantages = advantages[:train_batch]
+#responses = responses[train_batch:train_batch*2]
+#advantages = advantages[train_batch:train_batch*2]
 
 # +
 # https://github.com/keras-team/keras/blob/v3.8.0/keras/src/backend/jax/trainer.py#L710
@@ -468,10 +482,21 @@ gemma_lm.train_on_batch(x=responses, sample_weight=advantages)
 
 tms=(time.time()-t0)*1000.
 print(f"{len(responses)=:2d} : {tms:.2f}ms total = {tms/len(responses):.2f}ms each - after jit")
-# +
-#dir(gemma_lm)
-# -
+# len(responses)= 2 : 68120.49ms total = 34060.24ms each
+# len(responses)= 2 : 22723.84ms total = 11361.92ms each - after jit
+# len(responses)= 2 : 676.67ms total = 338.34ms each - after jit
+# No memory problem...
 
+# len(responses)= 4 
+# 2025-03-09 20:30:12.522939: W external/xla/xla/hlo/transforms/simplifiers/hlo_rematerialization.cc:3021] 
+# Can't reduce memory use below 8.47GiB (9095344140 bytes) by rematerialization; 
+#   only reduced to 9.43GiB (10128982370 bytes), down from 11.60GiB (12459174498 bytes) originally
+
+# len(responses)= 4 
+# 2025-03-09 20:23:31.950183: W external/xla/xla/hlo/transforms/simplifiers/hlo_rematerialization.cc:3021] 
+# Can't reduce memory use below 8.47GiB (9095339276 bytes) by rematerialization; 
+#   only reduced to 10.28GiB (11043464098 bytes), down from 13.71GiB (14724338162 bytes) originally
+# -
 aha_library.beep()
 
 

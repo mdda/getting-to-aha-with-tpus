@@ -11,7 +11,7 @@ def detect(XLA_PYTHON_CLIENT_MEM_FRACTION=1.0):
     else:  # We are on a CPU machine
       return 'cpu'        
 
-def jax_pip_install_str(backend, XLA_PYTHON_CLIENT_MEM_FRACTION=1.0):
+def jax_pip_install_str(backend, XLA_PYTHON_CLIENT_MEM_FRACTION=0.95):
   uv, jax_str, accelerator = 'uv', '', True
   
   if backend=='cpu':
@@ -27,7 +27,7 @@ def jax_pip_install_str(backend, XLA_PYTHON_CLIENT_MEM_FRACTION=1.0):
   if accelerator:
     # By default JAX will preallocate 75% of the total GPU memory when the first JAX operation is run. 
     #   https://docs.jax.dev/en/latest/gpu_memory_allocation.html
-    os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"]=str(XLA_PYTHON_CLIENT_MEM_FRACTION)
+    os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"]=f"{XLA_PYTHON_CLIENT_MEM_FRACTION:.2f}"
     
   try:
     from google.colab import userdata
