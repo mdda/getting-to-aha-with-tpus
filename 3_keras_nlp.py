@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.7
+#       jupytext_version: 1.16.4
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -379,27 +379,36 @@ import jax
 
 # eg: https://keras.io/examples/generative/midi_generation_with_transformer/
 @keras.utils.register_keras_serializable()
-def loss_log_softmax_logits(y_true, y_pred):
-  """y_true is (batch, time)[token_idx.int32], y_pred is (batch, time, logits)[floatx]"""
+def loss_log_softmax_logits(y_true_idx, y_pred):
+  """y_true_idx is (batch, time)[token_idx.int32], y_pred is (batch, time, logits)[floatx]"""
   #mask = ops.cast(ops.logical_not(ops.equal(y_true, CONFIG.token_pad)), "float32")
-  #y_true = ops.one_hot(ops.cast(y_true, "int32"), CONFIG.vocabulary_size)
+  #y_true = ops.one_hot(ops.cast(y_true_idx, "int32"), CONFIG.vocabulary_size)
   #return ops.categorical_crossentropy(y_true, y_pred, from_logits=True) * mask
-  #jax.debug.print("y_true.shape {v}", v=y_true.shape)
+  
+  #jax.debug.print("y_true_idx.shape {v}", v=y_true_idx.shape)
   #jax.debug.print("y_true.dtype {v}", v=y_true.dtype)
-  #y_true.shape (Array(8, dtype=int32), Array(512, dtype=int32)) y_true.dtype float16
+  #y_true_idx.shape (Array(8, dtype=int32), Array(512, dtype=int32)) y_true.dtype float16
   #y_pred.shape (Array(8, dtype=int32), Array(512, dtype=int32), Array(256000, dtype=int32)) y_pred.dtype float16
-  mask = keras.ops.cast(keras.ops.logical_not(keras.ops.equal(y_true, PAD_TOKEN)), y_pred.dtype)
-  y_true = keras.ops.one_hot(keras.ops.cast(y_true, "int32"), VOCAB_SIZE)
+  
+  mask = keras.ops.cast(keras.ops.logical_not(keras.ops.equal(y_true_idx, PAD_TOKEN)), y_pred.dtype)
+  
+  #y_true = keras.ops.one_hot(keras.ops.cast(y_true, "int32"), VOCAB_SIZE)  # TOO BIG
+  #return -keras.ops.sum(y_probs*y_true, axis=-1) * mask
+  #y_true_idx = keras.ops.cast(y_true, "int32")
   #mask.shape (Array(8, dtype=int32), Array(512, dtype=int32)) mask.dtype float16
   #y_true.shape (Array(8, dtype=int32), Array(512, dtype=int32), Array(256000, dtype=int32)) y_true.dtype float16
   
   # https://keras.io/api/ops/nn/
-  y_probs = keras.ops.log_softmax(y_pred, axis=1)
+  y_probs  = keras.ops.log_softmax(y_pred, axis=-1)
+  y_chosen = keras.ops.take_along_axis(y_probs, y_true_idx[..., None], axis=-1)  
+  
   #y_probs.shape (Array(8, dtype=int32), Array(512, dtype=int32), Array(256000, dtype=int32)) y_probs.dtype float16
   #dot = keras.ops.dot(y_probs, y_true)
   #jax.debug.print("dot.shape {v}", v=dot.shape)
   #jax.debug.print("dot.dtype {v}", v=dot.dtype)
-  return -keras.ops.sum(y_probs*y_true, axis=-1) * mask
+  
+  return -(y_chosen * mask)  # Loss should be minimised at maximum accepted probability
+  
   #return 8.
   # TypeError: broadcast_shapes got incompatible shapes for broadcasting: (8, 512, 256000), (1, 8, 512).
   #OR? https://keras.io/api/ops/numpy/#dot-function  

@@ -166,6 +166,41 @@ aha_dataset.countdown.generator.generate_puzzle(seed=1)
 
 aha_dataset.countdown.generator.generate_puzzle(as_structure=True)
 
+# ### Test Keras/JAX indexing
 
+import os
+os.environ["KERAS_BACKEND"] = "jax"
+
+# #! uv pip install keras
+import keras
+import numpy as np
+
+x_np = np.array([
+  [
+    [100, 200, 300, 400, 500], 
+    [222, 233, 321, 405, 502], 
+    [101, 222, 123, 432, 543], 
+  ],
+  [
+    [600, 700, 600, 555, 987], 
+    [722, 833, 721, 435, 876], 
+    [800, 900, 900, 640, 765], 
+  ],  
+])
+x_keras = keras.ops.array(x_np)
+x_keras.shape
+
+idx_np=np.array([
+  [ 1,3,0 ],
+  [ 3,2,4 ],
+])
+idx_keras = keras.ops.array(idx_np)
+
+# +
+#x_keras[..., idx_keras]  # Nope, this indexing is broadcast
+
+# https://keras.io/api/ops/numpy/#take_along_axis-function
+keras.ops.take_along_axis(x_keras, idx_keras[..., None], axis=-1)  # Seems to work!
+# -
 
 
