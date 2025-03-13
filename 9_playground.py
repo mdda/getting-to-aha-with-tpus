@@ -202,5 +202,14 @@ idx_keras = keras.ops.array(idx_np)
 # https://keras.io/api/ops/numpy/#take_along_axis-function
 keras.ops.take_along_axis(x_keras, idx_keras[..., None], axis=-1)  # Seems to work!
 # -
+# Other ideas (DID NOT WORK OUT)
+x_2d = x_keras.reshape( (-1, x_keras.shape[-1]) )
+idx_1d = idx_keras.flatten()
+x_2d, idx_1d
+
+
+#x_selected = x_2d[:, idx_1d]  # NOPE
+x_selected = keras.ops.numpy.take(x_2d, idx_1d, axis=-1) # NOPE
+x_selected
 
 

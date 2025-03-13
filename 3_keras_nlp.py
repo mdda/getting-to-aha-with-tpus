@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.7
+#       jupytext_version: 1.16.4
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -204,6 +204,7 @@ dataset.generate_puzzle(seed=1, as_structure=True)  # Set the seed, show an exam
 # { numbers=' '.join(str(n) for n in sorted(numbers)), target=str(target), proof=expression, }
 
 group_size = 8
+train_batch_size = group_size
 
 
 def get_item(difficulty=3):
@@ -213,16 +214,21 @@ def get_item(difficulty=3):
   return dataset.generate_puzzle(as_structure=True, n_small=4, n_large=2, target_min=100, target_max=999)
 
 
+# Not clear whether this is necessary...
 TASK_SPECIFIC_INSTRUCTIONS = """
 Welcome to the Countdown Numbers Game!
-Your answer must combine some (or all) of the Contestant Numbers using only '+', '-', '*' and '/' to make the Target Number exactly.
+Your answer must combine some (or all) of the given numbers using only the operations +, -, * and /.
 """.strip()
+# Your answer must combine some (or all) of the Contestant Numbers \
+# using only '+', '-', '*' and '/' to make the Target Number exactly.
 
 
 def item_add_prompt(item):
   item['prompt'] = (  # This is Alpaca-style (for a base model)
     f"### Instruction:\n{R1_STYLE_SYSTEM_PROMPT}\n\n{TASK_SPECIFIC_INSTRUCTIONS}\n" +
-    f"### Input:\nContestant Numbers: {item['numbers']}\nTarget Number: {item['target']}\n" +
+    #f"### Input:\nContestant Numbers: {item['numbers']}\nTarget Number: {item['target']}\n" +
+    # The following is the TinyZero paper prompt:
+    f"### Input:\nUsing the numbers [{item['numbers']}], create an equation that equals {item['target']}\n" +
     f"### Response:\n<reasoning>"
   )
   return
@@ -403,18 +409,21 @@ def loss_log_softmax_logits(y_true, y_pred):
   y_probs  = keras.ops.log_softmax(y_pred, axis=-1)
   y_true_idx = keras.ops.cast(y_true, "int32")
 
-
   # TypeError: take_along_axis indices must be of integer type, got float16
-  y_chosen = keras.ops.take_along_axis(y_probs, y_true_idx[..., None], axis=-1)  
+  # ValueError: Incompatible shapes for broadcasting: shapes=[(8, 512, 1), (8, 512)]
+  #y_chosen = keras.ops.take_along_axis(y_probs, y_true_idx[..., None], axis=-1)
+  #return -(y_chosen * mask[..., None])  # Loss should be minimised at maximum accepted probability
   
+  y_chosen = keras.ops.squeeze( keras.ops.take_along_axis(y_probs, y_true_idx[..., None], axis=-1), axis=-1)
+
   #y_probs.shape (Array(8, dtype=int32), Array(512, dtype=int32), Array(256000, dtype=int32)) y_probs.dtype float16
   #dot = keras.ops.dot(y_probs, y_true)
   #jax.debug.print("dot.shape {v}", v=dot.shape)
   #jax.debug.print("dot.dtype {v}", v=dot.dtype)
   
-  # ValueError: Incompatible shapes for broadcasting: shapes=[(8, 512, 1), (8, 512)]
-  return -(y_chosen * mask[..., None])  # Loss should be minimised at maximum accepted probability
-  # NB: Should average over the token length?  (i.e. sum(mask, axis=-1) ?
+  # NB: Average over the token length
+  mask_count = keras.ops.sum(mask, axis=-1, keepdims=True) # How many of the tokens are unmasked?
+  return -(y_chosen * mask/(mask_count+1e-6))  # Loss should be minimised at maximum accepted probability
   
   #return 8.
   # TypeError: broadcast_shapes got incompatible shapes for broadcasting: (8, 512, 256000), (1, 8, 512).
@@ -468,20 +477,17 @@ def get_train_input(item_arr): # (inputs=responses, sample_weights=advantages)
 responses, advantages = get_train_input(item_group)
 #responses, advantages
 
-train_batch = 2
-responses = responses[:train_batch]
-advantages = advantages[:train_batch]
-#responses = responses[train_batch:train_batch*2]
-#advantages = advantages[train_batch:train_batch*2]
+train_batch_size_on_one_device = 2
 
 # +
 # https://github.com/keras-team/keras/blob/v3.8.0/keras/src/backend/jax/trainer.py#L710
 t0=time.time()
-
-gemma_lm.train_on_batch(x=responses, sample_weight=advantages)
-
+for b in range( train_batch_size//train_batch_size_on_one_device ):
+  b_start, b_end = train_batch_size_on_one_device*b, train_batch_size_on_one_device*(b+1)
+  gemma_lm.train_on_batch(x=responses[b_start:b_end], sample_weight=advantages[b_start:b_end])
 tms=(time.time()-t0)*1000.
 print(f"{len(responses)=:2d} : {tms:.2f}ms total = {tms/len(responses):.2f}ms each - after jit")
+
 # len(responses)= 2 : 68120.49ms total = 34060.24ms each
 # len(responses)= 2 : 22723.84ms total = 11361.92ms each - after jit
 # len(responses)= 2 : 676.67ms total = 338.34ms each - after jit
