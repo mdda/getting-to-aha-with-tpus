@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.16.7
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -334,16 +334,24 @@ def item_add_group(item, group=-1):  # The 'group' is an ID - just need to be di
   item['group'] = group
   
 item_add_group(item, group=0)
-# -
 
+# +
 t0=time.time()
 item_group = multiply_item_by_n(item, group_size)
 prompts = get_generate_input(item_group)
 responses = gemma_lm.generate(prompts, max_length=max_completion_length)
 for idx, response in enumerate(responses):
   item_group[idx]['response'] = response
-print(f"{group_size=:2d} : {(time.time()-t0)*1000.:.2f}ms total = {(time.time()-t0)*1000./group_size:.2f}ms each - after jit")
+print(f"{group_size=:2d} : {(time.time()-t0)*1000.:.2f}ms total = {(time.time()-t0)*1000./group_size:.2f}ms each")
 aha_library.beep()
+# group_size= 8 : 41827.45ms total = 5228.43ms each - first time
+# group_size= 8 : 18091.68ms total = 2261.46ms each - after jit
+
+# group_size= 8 : 34630.19ms total = 4328.77ms each  # after some training (first time)
+
+# group_size=32 : 75958.35ms total = 2350.ms   each - first time
+# group_size=32 : 35667.24ms total = 1120ms    each - after jit
+# -
 
 reward_format      = format_reward_func(item_group)
 reward_correctness = correctness_reward_func(item_group)
@@ -477,12 +485,12 @@ def get_train_input(item_arr): # (inputs=responses, sample_weights=advantages)
 responses, advantages = get_train_input(item_group)
 #responses, advantages
 
-train_batch_size_on_one_device = 2
+train_batch_size_on_one_device = 2 # 4 may work (HLO complaint) - but speed-up doesn't seem worth the hassle...
 
 # +
 # https://github.com/keras-team/keras/blob/v3.8.0/keras/src/backend/jax/trainer.py#L710
 t0=time.time()
-for b in range( train_batch_size//train_batch_size_on_one_device ):
+for b in range( len(responses)//train_batch_size_on_one_device ):  # Go through all responses
   b_start, b_end = train_batch_size_on_one_device*b, train_batch_size_on_one_device*(b+1)
   gemma_lm.train_on_batch(x=responses[b_start:b_end], sample_weight=advantages[b_start:b_end])
 tms=(time.time()-t0)*1000.
@@ -491,12 +499,18 @@ print(f"{len(responses)=:2d} : {tms:.2f}ms total = {tms/len(responses):.2f}ms ea
 # len(responses)= 2 : 68120.49ms total = 34060.24ms each
 # len(responses)= 2 : 22723.84ms total = 11361.92ms each - after jit
 # len(responses)= 2 : 676.67ms total = 338.34ms each - after jit
-# No memory problem...
+# No rematerialization problem...
+
+# len(responses)= 8 : 86104.91ms total = 10763.11ms each - first time
+# len(responses)= 8 : 2218.61ms total = 277.33ms each - after jit
+# No rematerialization problem...
+
 
 # len(responses)= 4 
 # 2025-03-09 20:30:12.522939: W external/xla/xla/hlo/transforms/simplifiers/hlo_rematerialization.cc:3021] 
 # Can't reduce memory use below 8.47GiB (9095344140 bytes) by rematerialization; 
 #   only reduced to 9.43GiB (10128982370 bytes), down from 11.60GiB (12459174498 bytes) originally
+# HMM : https://docs.jax.dev/en/latest/gpu_memory_allocation.html
 
 # len(responses)= 4 
 # 2025-03-09 20:23:31.950183: W external/xla/xla/hlo/transforms/simplifiers/hlo_rematerialization.cc:3021] 
