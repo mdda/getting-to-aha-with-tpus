@@ -58,7 +58,8 @@
       - What happens to gradient accumulation? : Seems to be taken care of by optimiser
     + NOPE: "A Python generator function yielding (inputs, targets) or (inputs, targets, sample_weights)."
   - Add code to sample a batch of n (divisible by `n_devices`) at once
-    + DONE: How many samples can be trained at once in 16Gb device? (32 easily)
+    + DONE: How many samples can be rolled out at once in 16Gb device? (==32)
+    + DONE: How many samples can be trained at once in 16Gb device? (2 or so!)
     + Critical for decisions about batching:
       * Group size = 16 seems like a good idea
       * Batch size = 4 groups? (from Qwen 0.5B example) 
@@ -66,9 +67,10 @@
     + SEE: https://keras.io/api/optimizers/adamw/ : `gradient_accumulation_steps`
       * "useful when your batch size is very small"
       * "Learning rate schedules will look at 'real' iterations value (optimizer steps)"
-  - TEST: Adapt reward code from previous countdown colab
-  - TEST: Create group advantage function which will become `sample_weights`
-  - TEST: Add new loss function : `from_logits` looks like it is the gemma2 default output
+  - DONE: Adapt reward code from previous countdown colab
+  - DONE: Create group advantage function which will become `sample_weights`
+  - DONE: Add new loss function : `from_logits` looks like it is the gemma2 default output
+    + TEST that this still works on T4 (should do...)
   - Create loop of generate-score-train, etc
   - Test on GCP T4 (for a start)
   - Test on Colab TPU v5-1
