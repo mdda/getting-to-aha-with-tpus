@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.16.7
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -287,13 +287,15 @@ def extract_xml_answer(text: str) -> str:
         return ""
     #return aha_dataset.countdown.extract_solution(text) # This was from the Berkeley original
 
-reward_func_pattern = r"^<reasoning>(?:(?!</reasoning>).)*</reasoning>\n*<answer>(?:(?!</answer>).)*</answer>$"
+#reward_func_pattern = r"^<reasoning>(?:(?!</reasoning>).)*</reasoning>\n*<answer>(?:(?!</answer>).)*</answer>$"
+reward_func_pattern = re.compile(r"<reasoning>(?:(?!</reasoning>).)*</reasoning>\n*<answer>(?:(?!</answer>).)*</answer>", re.MULTILINE|re.DOTALL)
 def format_reward_func(item_arr, **kwargs) -> list[float]:
   """Reward function that checks whether each response has the correct format."""
-  return [ 
-    1.0 if bool(re.match(reward_func_pattern, item['response'].strip())) else 0.0 
-    for item in item_arr 
+  correct_arr = [ 
+    bool(reward_func_pattern.match(item['response'].split('### Response:')[-1].strip())) for item in item_arr 
   ]
+  print(''.join('✅' if correct else '❌' for correct in correct_arr))
+  return [1.0 if correct else 0.0 for correct in correct_arr]
 
 # For fn spec, see: https://huggingface.co/docs/trl/main/en/grpo_trainer#using-a-custom-reward-function
 def correctness_reward_func(item_arr) -> list[float]:
@@ -314,19 +316,21 @@ def correctness_reward_func(item_arr) -> list[float]:
   if True:  # Output the item_arr[0] results
     item = item_arr[0]
     response_wrapped = '\n'.join('\n'.join(textwrap.wrap(t, width=80)) for t in item['response'].splitlines() )
-    print(f"Question: {item['prompt']}\nTarget: {item['target']} with Proof: {item['proof']}\n"+
+    #print(f"Question: {item['prompt']}\nTarget: {item['target']} with Proof: {item['proof']}\n"+
+    print(f"Numbers:[{item['numbers']}], Target:{item['target']} -> Proof: {item['proof']}\n"+
           f"Response: {response_wrapped}\nExtracted: {item['extracted_response']}")
     
   print(''.join('✅' if correct else '❌' for correct in correct_arr))
   return [2.0 if correct else 0.0 for correct in correct_arr]
 
-#correctness_reward_func([[dict(content='last_user_prompt_line_here')],],
-#                       [[dict(content='<answer>23-14</answer>')],],  # Fake response for parsing
-#                        target=['9',], numbers=['14 23',], proof=["(23-14)",],)
-correctness_reward_func([
-  dict( prompt='PROMPT_TEXT', response='<answer>23-14</answer>', # Fake response for parsing
-        target='9', numbers='14 23', proof="(23-14)", ),
-])
+
+'<reasoning>\n(100 - 8 + 8) + 5 + 5\n</reasoning>\n<answer>\n115\n</answer>'
+#'\n<reasoning>Meh</reasoning>\n<answer> 23-14 </answer>', # Fake response for parsing
+#'<reasoning>\n(100 - 8 + 8) + 5 + 5\n</reasoning>\n<answer>\n115\n</answer>',
+item_test=dict( prompt='PROMPT_TEXT', response='\n<reasoning>\nMeh</reasoning>\n<answer>23-14 </answer>', # Fake response for parsing
+                target='9', numbers='14 23', proof="(23-14)", )
+print("format_reward : ", format_reward_func([item_test,]))
+correctness_reward_func([item_test,])
 
 
 # +
@@ -583,7 +587,7 @@ def generate_and_train_one_batch():
     t1=time.time()
     responses = gemma_lm.generate(prompts[b_start*b_mul:(b_start+1)*b_mul], max_length=max_completion_length)
     tms=(time.time()-t1)*1000.
-    print(f"  {len(responses)=:2d} : {tms:.2f}ms total = {tms/b_mul:.2f}ms each - generation mini-batch")
+    #print(f"  {len(responses)=:2d} : {tms:.2f}ms total = {tms/b_mul:.2f}ms each - generation mini-batch")
     for idx, response in enumerate(responses):
       item_groups[b_start*b_mul+idx]['response'] = response
   tms=(time.time()-t0)*1000.
@@ -605,15 +609,47 @@ def generate_and_train_one_batch():
     t1=time.time()
     gemma_lm.train_on_batch(x=responses[b_start*b_mul:(b_start+1)*b_mul], sample_weight=advantages[b_start*b_mul:(b_start+1)*b_mul])
     tms=(time.time()-t1)*1000.
-    print(f"  {len(responses)=:2d} : {tms:.2f}ms total = {tms/b_mul:.2f}ms each - training mini-batch")
+    #print(f"  {len(responses)=:2d} : {tms:.2f}ms total = {tms/b_mul:.2f}ms each - training mini-batch")
   tms=(time.time()-t0)*1000.
   print(f"{len(responses)=:2d} : {tms:.2f}ms total = {tms/len(responses):.2f}ms each - training step")
 
 generate_and_train_one_batch()
 # -
+aha_library.beep()
+
+generate_and_train_one_batch()
+
+aha_library.beep()
 
 
+response="""
+### Instruction:
+A conversation between User and Assistant. The user poses a countdown task
+problem, and the Assistant solves it.
+The assistant first thinks about the reasoning process in the mind and then
+provides the user with the answer.
+The reasoning process and answer are enclosed within <reasoning> </reasoning>
+and <answer> </answer> tags, respectively, i.e.,
+<reasoning> reasoning process here </reasoning>
+<answer> answer here </answer>
 
+Welcome to the Countdown Numbers Game!
+Your answer must combine some (or all) of the given numbers using only the operations +, -, * and /.
+### Input:
+Using the numbers [2 5 8 100], create an equation that equals 115
+### Response:
+<reasoning>
+(100 - 8 + 8) + 5 + 5
+</reasoning>
+<answer>
+115
+</answer>
+"""
+#response='<reasoning> (100 - 8 + 8) + 5 + 5 </reasoning>\n<answer> 115</answer>'
+item_test=dict( prompt='PROMPT_TEXT', response=response,
+                target='9', numbers='14 23', proof="(23-14)", )
+print("format_reward : ", format_reward_func([item_test,]))
 
+response.split('### Response:')[-1].strip()
 
 
