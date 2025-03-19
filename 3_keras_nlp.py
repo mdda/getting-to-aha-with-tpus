@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.7
+#       jupytext_version: 1.16.4
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -238,7 +238,7 @@ print(item['prompt'], item['proof'])
 
 
 def multiply_item_by_n(item, n):
-  return [ dict(item) for _ in range(n) ]
+  return [ dict(item) for _ in range(n) ]   # NB: dict(item) creates a (shallow) copy
 def get_generate_input(item_arr):
   return [
     item['prompt']
@@ -351,32 +351,44 @@ aha_library.beep()
 
 # group_size=32 : 75958.35ms total = 2350.ms   each - first time
 # group_size=32 : 35667.24ms total = 1120ms    each - after jit
-# -
 
-reward_format      = format_reward_func(item_group)
-reward_correctness = correctness_reward_func(item_group)
-for item, r_fmt, r_cor in zip(item_group, reward_format, reward_correctness):
-  item['reward'] = r_fmt + r_cor
+# +
+def set_reward_for_each_item(item_group):
+  reward_format      = format_reward_func(item_group)
+  reward_correctness = correctness_reward_func(item_group)
+  for item, r_fmt, r_cor in zip(item_group, reward_format, reward_correctness):
+    item['reward'] = r_fmt + r_cor
+    
+set_reward_for_each_item(item_group)
 
-# Group Advantage function (all items must be annotated with 'group' and 'reward' 
-grouped_items=dict()
-for item in item_group:
-  group=str(item['group'])
-  if group not in grouped_items:
-    grouped_items[group]=[]
-  grouped_items[group].append(item)
-#print(f"{list(grouped_items.keys())=}")
-for group, items in grouped_items.items():  # Now each group (whatever order) is in its own list
-  rewards = np.array( [ item['reward'] for item in items ], dtype=np.float32 )
-  mean = rewards.mean()
-  std = rewards.std(mean=mean)
-  advantages = (
-    rewards*0.0 if std==0.0 else (rewards-mean)/std
-  ).clip(0., rewards.shape[0])  
-  #print(f"{rewards=}, {mean=}, {std=}\n{advantages=}")
-  for idx in range(advantages.shape[0]):
-    items[idx]['advantage'] = advantages[idx]
+
+# +
+def set_group_advantages(item_group):
+  # Group Advantage function (all items must be annotated with 'group' and 'reward' 
+  
+  # Create a dictionary, where each key is the group_id and points to a list of items in that group
+  grouped_items=dict()
+  for item in item_group:
+    group=str(item['group'])
+    if group not in grouped_items:
+      grouped_items[group]=[]
+    grouped_items[group].append(item)
+  #print(f"{list(grouped_items.keys())=}")
+  
+  for group, items in grouped_items.items():  # Now each group (whatever order) is in its own list
+    rewards = np.array( [ item['reward'] for item in items ], dtype=np.float32 )
+    mean = rewards.mean()
+    std = rewards.std(mean=mean)
+    advantages = (
+      rewards*0.0 if std==0.0 else (rewards-mean)/std
+    ).clip(0., rewards.shape[0])  
+    #print(f"{rewards=}, {mean=}, {std=}\n{advantages=}")
+    for idx in range(advantages.shape[0]):
+      items[idx]['advantage'] = advantages[idx]
+      
+set_group_advantages(item_group)
 item_group[1]  # An element in the item_group - just to check the advantages have propagated
+# -
 
 # ## New loss function
 # * Based on: https://x.com/shxf0072/status/1892668791303373042
@@ -518,5 +530,90 @@ print(f"{len(responses)=:2d} : {tms:.2f}ms total = {tms/len(responses):.2f}ms ea
 #   only reduced to 10.28GiB (11043464098 bytes), down from 13.71GiB (14724338162 bytes) originally
 # -
 aha_library.beep()
+
+# ### Generation and Training Loop
+
+# +
+# n_devices is defined above, and included in sharding definition
+group_size = 16 
+groups_per_step = 4
+
+if n_devices>1:
+  gs_mul=2
+  group_size*=gs_mul
+  groups_per_step*=n_devices//gs_mul
+
+total_batch_size = group_size * groups_per_step
+print(f"{total_batch_size=} : {group_size=} {groups_per_step=}")
+# -
+
+# These are derived from memory usage on T4 (16Gb Nvidia GPU)
+generate_batch_size_on_one_device = 32
+train_batch_size_on_one_device = 2
+
+# Ensure this is set up with right numbers
+gemma_lm.compile(
+  loss=loss_log_softmax_logits,
+  optimizer=keras.optimizers.Adam(learning_rate=5e-5, 
+                                  gradient_accumulation_steps=total_batch_size//n_devices//train_batch_size_on_one_device),
+  #weighted_metrics=[keras.metrics.SparseCategoricalAccuracy()],
+  weighted_metrics="auto", 
+  sampler = keras_hub.samplers.RandomSampler(temperature=0.7),  # Also possible to add more
+)
+
+
+# +
+def generate_and_train_one_batch():
+  # Assumes gemma_lm is compiled with loss, and sampler, as above
+
+  # Build a bunch of example
+  item_groups=[]
+  for group_id in range(groups_per_step):
+    item = get_item()
+    item_add_prompt(item)
+    item_add_group(item, group=group_id)
+    item_group = multiply_item_by_n(item, group_size)
+    item_groups.extend( item_group )
+
+  # Go through these in appropriate generation chunks
+  prompts = get_generate_input(item_groups)
+  t0=time.time()
+  b_mul = n_devices*generate_batch_size_on_one_device
+  for b_start in range( len(prompts)//b_mul ):  # Go through all prompts
+    t1=time.time()
+    responses = gemma_lm.generate(prompts[b_start*b_mul:(b_start+1)*b_mul], max_length=max_completion_length)
+    tms=(time.time()-t1)*1000.
+    print(f"  {len(responses)=:2d} : {tms:.2f}ms total = {tms/b_mul:.2f}ms each - generation mini-batch")
+    for idx, response in enumerate(responses):
+      item_groups[b_start*b_mul+idx]['response'] = response
+  tms=(time.time()-t0)*1000.
+  print(f"{len(item_groups)=:2d} : {tms:.2f}ms total = {tms/len(item_groups):.2f}ms each - generation")
+
+  # Calculate all rewards, and the group_advantages
+  set_reward_for_each_item(item_groups)
+  if True:
+    reward_mean = sum([ item['reward'] for item in item_groups ])/len(item_groups)
+    response_len_mean = sum([ len(item['response']) for item in item_groups ])/len(item_groups)
+    print(f"#reward_mean={reward_mean:5.2f}, #response_len_mean={response_len_mean:6.1f}chars")
+  set_group_advantages(item_groups)
+
+  # Go through these in appropriate training chunks - gradient_accumulation_steps set above
+  responses, advantages = get_train_input(item_groups)
+  t0=time.time()
+  b_mul = n_devices*train_batch_size_on_one_device
+  for b_start in range( len(responses)//b_mul ):  # Go through all responses
+    t1=time.time()
+    gemma_lm.train_on_batch(x=responses[b_start*b_mul:(b_start+1)*b_mul], sample_weight=advantages[b_start*b_mul:(b_start+1)*b_mul])
+    tms=(time.time()-t1)*1000.
+    print(f"  {len(responses)=:2d} : {tms:.2f}ms total = {tms/b_mul:.2f}ms each - training mini-batch")
+  tms=(time.time()-t0)*1000.
+  print(f"{len(responses)=:2d} : {tms:.2f}ms total = {tms/len(responses):.2f}ms each - training step")
+
+generate_and_train_one_batch()
+# -
+
+
+
+
 
 

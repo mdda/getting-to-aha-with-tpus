@@ -10,6 +10,7 @@
 
 * Next ideas for `nnx gemma2`
   + Upgrade Sampler to allow for plugins
+  + Resolve branch diff vs current (which has Google withheld changes and gemma3)
   + Fix 27B model's [attention normalisation factor](https://github.com/google-deepmind/gemma/blob/main/gemma/transformer.py#L235)
 
 
@@ -70,8 +71,15 @@
   - DONE: Adapt reward code from previous countdown colab
   - DONE: Create group advantage function which will become `sample_weights`
   - DONE: Add new loss function : `from_logits` looks like it is the gemma2 default output
-    + TEST that this still works on T4 (should do...)
+    + DONE: that this still works on T4 (WORKS)
   - Create loop of generate-score-train, etc
+    + Just add to end of current notebook
+      * DONE: gather constants
+      * DONE: expanded batching
+      * DONE: expanded generation
+      * TEST: get some metrics for display
+      * TEST: Use GCP T4 to check that metrics are moving in desired direction (!)
+      * get some metrics for Tensorboard
   - Test on GCP T4 (for a start)
   - Test on Colab TPU v5-1
 
