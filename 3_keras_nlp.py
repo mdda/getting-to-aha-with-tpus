@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.16.7
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -408,11 +408,32 @@ PAD_TOKEN  = gemma_lm.preprocessor.tokenizer.pad_token_id       # CONST
 VOCAB_SIZE = gemma_lm.preprocessor.tokenizer.vocabulary_size()  # CONST
 
 import jax
-
+def jax_debug_str(k, v):
+  jax.debug.print("{k} {shape}.{dtype} = {value}", k=k, shape=v.shape, dtype=v.dtype, value=v) 
+  
 # eg: https://keras.io/examples/generative/midi_generation_with_transformer/
 @keras.utils.register_keras_serializable()
 def loss_log_softmax_logits(y_true, y_pred):
   """y_true is (batch, time)[token_idx.floatx], y_pred is (batch, time, logits)[floatx]"""
+  jax_debug_str("y_true", y_true)
+  # y_true (2, 512).float16 = 
+  # [[6.176e+03 3.613e+04       inf ... 6.740e+02 7.980e+02 1.000e+00], [6.176e+03 3.613e+04       inf ... 0.000e+00 0.000e+00 0.000e+00]]
+  jax_debug_str("y_pred", y_pred)  # i.e. : these are the logits output by the model :: Seems fine
+  # y_pred (2, 512, 256000).float16 = [[[-24.28     -8.734    -7.      ... -18.38    -17.42    -24.31   ]
+  #[-12.23      4.574     1.986   ...  -6.496    -8.664   -12.164  ]
+  #[ -4.656     7.062     8.734   ...   1.815     7.875    -4.7    ]
+  #...
+  #[-22.08      0.02689  -4.945   ... -13.555   -10.56    -22.08   ]
+  #[-22.2       0.4006   -6.586   ... -13.03    -10.08    -22.23   ]
+  #[-23.11     -0.03268  -7.152   ... -13.4     -10.766   -23.17   ]],
+  #[[-24.28     -8.734    -7.      ... -18.38    -17.42    -24.31   ]
+  #[-12.23      4.574     1.986   ...  -6.496    -8.664   -12.164  ]
+  #[ -4.656     7.062     8.734   ...   1.815     7.875    -4.7    ]
+  #...
+  #[ -6.094    24.75     12.766   ...   5.71      6.965    -6.055  ]
+  #[ -6.71     24.72     12.85    ...   5.258     6.453    -6.688  ]
+  #[ -7.117    24.8      13.07    ...   5.035     6.414    -7.098  ]]]
+
   #mask = ops.cast(ops.logical_not(ops.equal(y_true, CONFIG.token_pad)), "float32")
   #y_true = ops.one_hot(ops.cast(y_true_idx, "int32"), CONFIG.vocabulary_size)
   #return ops.categorical_crossentropy(y_true, y_pred, from_logits=True) * mask
@@ -422,24 +443,35 @@ def loss_log_softmax_logits(y_true, y_pred):
   #y_true.shape (Array(8, dtype=int32), Array(512, dtype=int32))                             y_true.dtype float16
   #y_pred.shape (Array(8, dtype=int32), Array(512, dtype=int32), Array(256000, dtype=int32)) y_pred.dtype float16
   
-  mask = keras.ops.cast(keras.ops.logical_not(keras.ops.equal(y_true, PAD_TOKEN)), y_pred.dtype)
-  
   #y_true = keras.ops.one_hot(keras.ops.cast(y_true, "int32"), VOCAB_SIZE)  # TOO BIG
   #return -keras.ops.sum(y_probs*y_true, axis=-1) * mask
   #y_true_idx = keras.ops.cast(y_true, "int32")
   #mask.shape (Array(8, dtype=int32), Array(512, dtype=int32)) mask.dtype float16
   #y_true.shape (Array(8, dtype=int32), Array(512, dtype=int32), Array(256000, dtype=int32)) y_true.dtype float16
   
+  mask = keras.ops.cast(keras.ops.logical_not(keras.ops.equal(y_true, PAD_TOKEN)), y_pred.dtype)
+  #jax_debug_str("mask", mask)  # (Array(2, dtype=int32), Array(512, dtype=int32))
+  # This is 1.0 for all the non-PAD_TOKEN elements
+  
   # https://keras.io/api/ops/nn/
-  y_probs  = keras.ops.log_softmax(y_pred, axis=-1)
+  y_logprobs = keras.ops.log_softmax(y_pred, axis=-1)
   y_true_idx = keras.ops.cast(y_true, "int32")
-
+  # jax_debug_str("y_logprobs", y_logprobs) #  y_logprobs (2, 512, 256000).float16 :: Looks fine (negative numbers)
+  jax_debug_str("y_true_idx", y_true_idx)
+  # y_true_idx (Array(2, dtype=int32), Array(512, dtype=int32)).int32 = [[      6176      36128 2147483647 ...        674        798          1]
+  # [      6176      36128 2147483647 ...          0          0          0]]
+  
   # TypeError: take_along_axis indices must be of integer type, got float16
   # ValueError: Incompatible shapes for broadcasting: shapes=[(8, 512, 1), (8, 512)]
   #y_chosen = keras.ops.take_along_axis(y_probs, y_true_idx[..., None], axis=-1)
   #return -(y_chosen * mask[..., None])  # Loss should be minimised at maximum accepted probability
   
-  y_chosen = keras.ops.squeeze( keras.ops.take_along_axis(y_probs, y_true_idx[..., None], axis=-1), axis=-1)
+  y_chosen = keras.ops.squeeze( keras.ops.take_along_axis(y_logprobs, y_true_idx[..., None], axis=-1), axis=-1)
+  #jax.debug.print("y_chosen.shape {v}", v=y_chosen.shape)  # (Array(2, dtype=int32), Array(512, dtype=int32))
+  #v=y_chosen; jax.debug.print("y_chosen {shape}.{dtype} = {value}", shape=v.shape, dtype=v.dtype, value=v) 
+  jax_debug_str("y_chosen", y_chosen)
+  # y_chosen (Array(2, dtype=int32), Array(512, dtype=int32)).float16 = 
+  # [[-13.48 -20.19    nan ...   0.     0.   -15.95], [-13.48 -20.19    nan ... -33.56 -34.22 -34.72]]
 
   #y_probs.shape (Array(8, dtype=int32), Array(512, dtype=int32), Array(256000, dtype=int32)) y_probs.dtype float16
   #dot = keras.ops.dot(y_probs, y_true)
@@ -448,7 +480,17 @@ def loss_log_softmax_logits(y_true, y_pred):
   
   # NB: Average over the token length
   mask_count = keras.ops.sum(mask, axis=-1, keepdims=True) # How many of the tokens are unmasked?
-  return -(y_chosen * mask/(mask_count+1e-6))  # Loss should be minimised at maximum accepted probability
+  # mask_count (Array(2, dtype=int32), Array(1, dtype=int32)).float16 = [[512.], [507.]]
+  #jax.debug.print("mask_count.shape {v}", v=mask_count.shape)  # (Array(2, dtype=int32), Array(1, dtype=int32))
+  #jax.debug.print("mask_count {v}", v=mask_count)              # mask_count [[512.] [507.]]
+  jax_debug_str("mask_count", mask_count)
+  
+  loss = -(y_chosen * mask/(mask_count+1e-6))  # Loss should be minimised at maximum accepted probability
+  #v=loss; jax.debug.print("loss {shape}.{dtype} = {value}", shape=v.shape, dtype=v.dtype, value=v) 
+  jax_debug_str("loss", loss)
+  # loss (2, 512).float16 = [[ 0.02632  0.03943      nan ... -0.      -0.       0.03116] [ 0.02658  0.03983      nan ... -0.      -0.      -0.     ]]
+  
+  return loss
   
   #return 8.
   # TypeError: broadcast_shapes got incompatible shapes for broadcasting: (8, 512, 256000), (1, 8, 512).
@@ -510,6 +552,8 @@ t0=time.time()
 for b in range( len(responses)//train_batch_size_on_one_device ):  # Go through all responses
   b_start, b_end = train_batch_size_on_one_device*b, train_batch_size_on_one_device*(b+1)
   gemma_lm.train_on_batch(x=responses[b_start:b_end], sample_weight=advantages[b_start:b_end])
+  print("EARLY BREAK")
+  break
 tms=(time.time()-t0)*1000.
 print(f"{len(responses)=:2d} : {tms:.2f}ms total = {tms/len(responses):.2f}ms each - after jit")
 
@@ -560,7 +604,8 @@ print(f"{total_batch_size=} : {group_size=} {groups_per_step=}")
 generate_batch_size_on_one_device = 32
 train_batch_size_on_one_device = 2
 
-tb_log_dir = tb_log_base + datetime.now().strftime("%Y%m%d-%H%M%S")
+import tensorflow as tf  # Just the CPU version installed above : Only want TensorBoard
+tb_log_dir = tb_log_base + time.strftime("%Y%m%d-%H%M%S")
 tb_callback = keras.callbacks.TensorBoard(log_dir=tb_log_dir)
 tb_log_writer = tf.summary.create_file_writer(tb_log_dir+'/metrics')
 
@@ -617,20 +662,24 @@ def generate_and_train_one_batch(step=None):
   b_mul = n_devices*train_batch_size_on_one_device
   for b_start in range( len(responses)//b_mul ):  # Go through all responses
     t1=time.time()
-    gemma_lm.train_on_batch(
+    train_metrics=gemma_lm.train_on_batch(
       x=responses[b_start*b_mul:(b_start+1)*b_mul], 
       sample_weight=advantages[b_start*b_mul:(b_start+1)*b_mul],
-      callback = [tb_callback, ],
+      #callback = [tb_callback, ],
+      return_dict=False,  # Get back the metrics
     )
+    print(f"{train_metrics=}")  # Not accumulated across batch...
     tms=(time.time()-t1)*1000.
     #print(f"  {len(responses)=:2d} : {tms:.2f}ms total = {tms/b_mul:.2f}ms each - training mini-batch")
   tms=(time.time()-t0)*1000.
   print(f"{len(responses)=:2d} : {tms:.2f}ms total = {tms/len(responses):.2f}ms each - training step")
+  print(f"{train_metrics=}")  # Not accumulated across batch...
 
   if step is not None:
     with tb_log_writer.as_default(step=step):
       tf.summary.scalar('reward_mean', data=reward_mean, step=step)
       tf.summary.scalar('response_len_mean', data=response_len_mean, step=step)
+      #train_metrics
 
 generate_and_train_one_batch(1) # Add step here, just to check TB functions - remove ASAP
 # -
