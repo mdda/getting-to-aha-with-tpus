@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.7
+#       jupytext_version: 1.16.4
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -315,7 +315,8 @@ def correctness_reward_func(item_arr) -> list[float]:
     
   if True:  # Output the item_arr[0] results
     item = item_arr[0]
-    response_wrapped = '\n'.join('\n'.join(textwrap.wrap(t, width=80)) for t in item['response'].splitlines() )
+    response_only = item['response'].split('### Response:')[-1].strip()
+    response_wrapped = '\n'.join('\n'.join(textwrap.wrap(t, width=80)) for t in response_only.splitlines() )
     #print(f"Question: {item['prompt']}\nTarget: {item['target']} with Proof: {item['proof']}\n"+
     print(f"Numbers:[{item['numbers']}], Target:{item['target']} -> Proof: {item['proof']}\n"+
           f"Response: {response_wrapped}\nExtracted: {item['extracted_response']}")
@@ -537,6 +538,10 @@ aha_library.beep()
 
 # ### Generation and Training Loop
 
+# Load the TensorBoard notebook extension.
+# %load_ext tensorboard
+tb_log_base = "./logs/scalars/" 
+
 # +
 # n_devices is defined above, and included in sharding definition
 group_size = 16 
@@ -555,10 +560,15 @@ print(f"{total_batch_size=} : {group_size=} {groups_per_step=}")
 generate_batch_size_on_one_device = 32
 train_batch_size_on_one_device = 2
 
+tb_log_dir = tb_log_base + datetime.now().strftime("%Y%m%d-%H%M%S")
+tb_callback = keras.callbacks.TensorBoard(log_dir=tb_log_dir)
+tb_log_writer = tf.summary.create_file_writer(tb_log_dir+'/metrics')
+
 # Ensure this is set up with right numbers
 gemma_lm.compile(
   loss=loss_log_softmax_logits,
-  optimizer=keras.optimizers.Adam(learning_rate=5e-5, 
+  # https://www.anyscale.com/blog/fine-tuning-llms-lora-or-full-parameter-an-in-depth-analysis-with-llama-2#base-learning-rate:-1e-4
+  optimizer=keras.optimizers.Adam(learning_rate=1e-4, # 5e-5, 
                                   gradient_accumulation_steps=total_batch_size//n_devices//train_batch_size_on_one_device),
   #weighted_metrics=[keras.metrics.SparseCategoricalAccuracy()],
   weighted_metrics="auto", 
@@ -567,7 +577,7 @@ gemma_lm.compile(
 
 
 # +
-def generate_and_train_one_batch():
+def generate_and_train_one_batch(step=None):
   # Assumes gemma_lm is compiled with loss, and sampler, as above
 
   # Build a bunch of example
@@ -595,9 +605,9 @@ def generate_and_train_one_batch():
 
   # Calculate all rewards, and the group_advantages
   set_reward_for_each_item(item_groups)
+  reward_mean = sum([ item['reward'] for item in item_groups ])/len(item_groups)
+  response_len_mean = sum([ len(item['response']) for item in item_groups ])/len(item_groups)
   if True:
-    reward_mean = sum([ item['reward'] for item in item_groups ])/len(item_groups)
-    response_len_mean = sum([ len(item['response']) for item in item_groups ])/len(item_groups)
     print(f"#reward_mean={reward_mean:5.2f}, #response_len_mean={response_len_mean:6.1f}chars")
   set_group_advantages(item_groups)
 
@@ -607,49 +617,36 @@ def generate_and_train_one_batch():
   b_mul = n_devices*train_batch_size_on_one_device
   for b_start in range( len(responses)//b_mul ):  # Go through all responses
     t1=time.time()
-    gemma_lm.train_on_batch(x=responses[b_start*b_mul:(b_start+1)*b_mul], sample_weight=advantages[b_start*b_mul:(b_start+1)*b_mul])
+    gemma_lm.train_on_batch(
+      x=responses[b_start*b_mul:(b_start+1)*b_mul], 
+      sample_weight=advantages[b_start*b_mul:(b_start+1)*b_mul],
+      callback = [tb_callback, ],
+    )
     tms=(time.time()-t1)*1000.
     #print(f"  {len(responses)=:2d} : {tms:.2f}ms total = {tms/b_mul:.2f}ms each - training mini-batch")
   tms=(time.time()-t0)*1000.
   print(f"{len(responses)=:2d} : {tms:.2f}ms total = {tms/len(responses):.2f}ms each - training step")
 
-generate_and_train_one_batch()
+  if step is not None:
+    with tb_log_writer.as_default(step=step):
+      tf.summary.scalar('reward_mean', data=reward_mean, step=step)
+      tf.summary.scalar('response_len_mean', data=response_len_mean, step=step)
+
+generate_and_train_one_batch(1) # Add step here, just to check TB functions - remove ASAP
 # -
 aha_library.beep()
 
-generate_and_train_one_batch()
+# ### Full generation/training loop
+
+# %tensorboard --logdir {tb_log_base}
+
+global_step=0
+
+while True and global_step<1000:
+  generate_and_train_one_batch(step=global_step)
+  global_step+=1
 
 aha_library.beep()
 
-
-response="""
-### Instruction:
-A conversation between User and Assistant. The user poses a countdown task
-problem, and the Assistant solves it.
-The assistant first thinks about the reasoning process in the mind and then
-provides the user with the answer.
-The reasoning process and answer are enclosed within <reasoning> </reasoning>
-and <answer> </answer> tags, respectively, i.e.,
-<reasoning> reasoning process here </reasoning>
-<answer> answer here </answer>
-
-Welcome to the Countdown Numbers Game!
-Your answer must combine some (or all) of the given numbers using only the operations +, -, * and /.
-### Input:
-Using the numbers [2 5 8 100], create an equation that equals 115
-### Response:
-<reasoning>
-(100 - 8 + 8) + 5 + 5
-</reasoning>
-<answer>
-115
-</answer>
-"""
-#response='<reasoning> (100 - 8 + 8) + 5 + 5 </reasoning>\n<answer> 115</answer>'
-item_test=dict( prompt='PROMPT_TEXT', response=response,
-                target='9', numbers='14 23', proof="(23-14)", )
-print("format_reward : ", format_reward_func([item_test,]))
-
-response.split('### Response:')[-1].strip()
 
 

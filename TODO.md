@@ -77,9 +77,9 @@
       * DONE: gather constants
       * DONE: expanded batching
       * DONE: expanded generation
-      * TEST: get some metrics for display
-      * TEST: Use GCP T4 to check that metrics are moving in desired direction (!)
-      * get some metrics for Tensorboard
+      * DONE: get some metrics for display
+      * TEST: Use GCP T4 to check that metrics are moving in desired direction (need to loop...)
+      * TEST: get some metrics for Tensorboard
   - Test on GCP T4 (for a start)
   - Test on Colab TPU v5-1
 
