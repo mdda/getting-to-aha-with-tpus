@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.16.7
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -80,11 +80,11 @@ if backend=='gpu':
   # Doesn't seem to change anything...
   #keras.mixed_precision.set_global_policy("mixed_bfloat16") # ... try again...
   # CAUSES : XlaRuntimeError: UNIMPLEMENTED: Unsupported algorithm on the current device(s): ALG_DOT_BF16_BF16_F32
-  keras.config.set_floatx("float16")    
+  keras.config.set_floatx("float16")
   # WORKS! : Model apparently loads/runs in 16-bit format
   pass
 if backend=='tpu':
-  keras.config.set_floatx("bfloat16")  
+  keras.config.set_floatx("bfloat16")
 
 # +
 n_devices, batch_dim, model_dim = len(jax.devices()), "batch", "model"
@@ -412,8 +412,8 @@ def jax_debug_str(k, v):
   jax.debug.print("{k} {shape}.{dtype} = {value}", k=k, shape=v.shape, dtype=v.dtype, value=v) 
   
 # eg: https://keras.io/examples/generative/midi_generation_with_transformer/
-@keras.utils.register_keras_serializable()
-def loss_log_softmax_logits(y_true, y_pred):
+# @keras.utils.register_keras_serializable()
+def loss_log_softmax_logits(y_true, y_pred, sample_weight=None):  # sample_weight will be supplied... BUT IT ISN'T ...
   """y_true is (batch, time)[token_idx.floatx], y_pred is (batch, time, logits)[floatx]"""
   jax_debug_str("y_true", y_true)
   # y_true (2, 512).float16 = 
@@ -433,6 +433,8 @@ def loss_log_softmax_logits(y_true, y_pred):
   #[ -6.094    24.75     12.766   ...   5.71      6.965    -6.055  ]
   #[ -6.71     24.72     12.85    ...   5.258     6.453    -6.688  ]
   #[ -7.117    24.8      13.07    ...   5.035     6.414    -7.098  ]]]
+
+  jax_debug_str("sample_weight", sample_weight)
 
   #mask = ops.cast(ops.logical_not(ops.equal(y_true, CONFIG.token_pad)), "float32")
   #y_true = ops.one_hot(ops.cast(y_true_idx, "int32"), CONFIG.vocabulary_size)
@@ -562,7 +564,8 @@ if True:
   t0=time.time()
   bs = train_batch_size_on_one_device*n_devices
   #gemma_lm.fit(x=responses, sample_weight=advantages, batch_size=bs)
-  gemma_lm.fit(x=responses[:bs], sample_weight=advantages[:bs], batch_size=bs)
+  #gemma_lm.fit(x=responses[:bs], sample_weight=advantages[:bs], batch_size=bs)
+  gemma_lm.fit(x=responses[:bs], batch_size=bs) #   sample_weight=advantages[:bs], 
   tms=(time.time()-t0)*1000.
   print(f"{len(responses)=:2d} : {tms:.2f}ms total = {tms/len(responses):.2f}ms each - after jit")
 
