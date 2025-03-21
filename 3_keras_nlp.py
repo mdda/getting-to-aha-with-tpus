@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.7
+#       jupytext_version: 1.16.4
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -548,14 +548,23 @@ train_batch_size_on_one_device = 2 # 4 may work (HLO complaint) - but speed-up d
 
 # +
 # https://github.com/keras-team/keras/blob/v3.8.0/keras/src/backend/jax/trainer.py#L710
-t0=time.time()
-for b in range( len(responses)//train_batch_size_on_one_device ):  # Go through all responses
-  b_start, b_end = train_batch_size_on_one_device*b, train_batch_size_on_one_device*(b+1)
-  gemma_lm.train_on_batch(x=responses[b_start:b_end], sample_weight=advantages[b_start:b_end])
-  print("EARLY BREAK")
-  break
-tms=(time.time()-t0)*1000.
-print(f"{len(responses)=:2d} : {tms:.2f}ms total = {tms/len(responses):.2f}ms each - after jit")
+if False:
+  t0=time.time()
+  for b in range( len(responses)//train_batch_size_on_one_device ):  # Go through all responses
+    b_start, b_end = train_batch_size_on_one_device*b, train_batch_size_on_one_device*(b+1)
+    gemma_lm.train_on_batch(x=responses[b_start:b_end], sample_weight=advantages[b_start:b_end])
+    print("EARLY BREAK")
+    break
+  tms=(time.time()-t0)*1000.
+  print(f"{len(responses)=:2d} : {tms:.2f}ms total = {tms/len(responses):.2f}ms each - after jit")
+
+if True:
+  t0=time.time()
+  bs = train_batch_size_on_one_device*n_devices
+  #gemma_lm.fit(x=responses, sample_weight=advantages, batch_size=bs)
+  gemma_lm.fit(x=responses[:bs], sample_weight=advantages[:bs], batch_size=bs)
+  tms=(time.time()-t0)*1000.
+  print(f"{len(responses)=:2d} : {tms:.2f}ms total = {tms/len(responses):.2f}ms each - after jit")
 
 # len(responses)= 2 : 68120.49ms total = 34060.24ms each
 # len(responses)= 2 : 22723.84ms total = 11361.92ms each - after jit
