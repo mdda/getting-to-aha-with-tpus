@@ -80,11 +80,13 @@ if backend=='gpu':
   # Doesn't seem to change anything...
   #keras.mixed_precision.set_global_policy("mixed_bfloat16") # ... try again...
   # CAUSES : XlaRuntimeError: UNIMPLEMENTED: Unsupported algorithm on the current device(s): ALG_DOT_BF16_BF16_F32
-  keras.config.set_floatx("float16")
+  model_dtype="float16"
+  #keras.config.set_floatx("float16")
   # WORKS! : Model apparently loads/runs in 16-bit format
   pass
 if backend=='tpu':
-  keras.config.set_floatx("bfloat16")
+  model_dtype="bfloat16"
+  #keras.config.set_floatx("bfloat16")
 
 # +
 n_devices, batch_dim, model_dim = len(jax.devices()), "batch", "model"
@@ -128,7 +130,8 @@ config = aha_library.config.read(BASE)
 aha_library.config.load_kaggle_secrets(config) # sets up kaggle environment variables 
 
 # https://keras.io/keras_hub/api/models/gemma/gemma_causal_lm/
-gemma_lm = keras_hub.models.GemmaCausalLM.from_preset(model_name)  
+#gemma_lm = keras_hub.models.GemmaCausalLM.from_preset(model_name)  
+gemma_lm = keras_hub.models.GemmaCausalLM.from_preset(model_name, dtype=model_dtype)  
 #  Download of ~5Gb, nice formatting (implies that actual download is in 16-bit format...)
 
 # +
@@ -147,6 +150,9 @@ for variable in decoder_block_1.weights:
 # Enable LoRA for the model and set the LoRA rank to 16.
 gemma_lm.backbone.enable_lora(rank=16) 
 # This appears to make the sampling regenerate compiled code (seems reasonable)
+
+#gemma_lm.summary()  # Shows that it is loaded in 16-bit
+gemma_lm.backbone.dtype
 
 # ## Inference test
 
@@ -184,6 +190,7 @@ aha_library.beep()
 
 # +
 max_prompt_length, max_completion_length = 256, 512
+#max_prompt_length, max_completion_length = 128, 256
 
 R1_STYLE_SYSTEM_PROMPT = """
 A conversation between User and Assistant. The user poses a countdown task problem, and the Assistant solves it.
@@ -411,98 +418,9 @@ import jax
 def jax_debug_str(k, v):
   jax.debug.print("{k} {shape}.{dtype} = {value}", k=k, shape=v.shape, dtype=v.dtype, value=v) 
   
-# eg: https://keras.io/examples/generative/midi_generation_with_transformer/
-# @keras.utils.register_keras_serializable()
-def loss_log_softmax_logits(y_true, y_pred):  # sample_weight will be supplied... BUT IT ISN'T ... , sample_weight=None
-  """y_true is (batch, time)[token_idx.floatx], y_pred is (batch, time, logits)[floatx]"""
-  jax_debug_str("y_true", y_true)
-  # y_true (2, 512).float16 = 
-  # [[6.176e+03 3.613e+04       inf ... 6.740e+02 7.980e+02 1.000e+00], [6.176e+03 3.613e+04       inf ... 0.000e+00 0.000e+00 0.000e+00]]
-  jax_debug_str("y_pred", y_pred)  # i.e. : these are the logits output by the model :: Seems fine
-  # y_pred (2, 512, 256000).float16 = [[[-24.28     -8.734    -7.      ... -18.38    -17.42    -24.31   ]
-  #[-12.23      4.574     1.986   ...  -6.496    -8.664   -12.164  ]
-  #[ -4.656     7.062     8.734   ...   1.815     7.875    -4.7    ]
-  #...
-  #[-22.08      0.02689  -4.945   ... -13.555   -10.56    -22.08   ]
-  #[-22.2       0.4006   -6.586   ... -13.03    -10.08    -22.23   ]
-  #[-23.11     -0.03268  -7.152   ... -13.4     -10.766   -23.17   ]],
-  #[[-24.28     -8.734    -7.      ... -18.38    -17.42    -24.31   ]
-  #[-12.23      4.574     1.986   ...  -6.496    -8.664   -12.164  ]
-  #[ -4.656     7.062     8.734   ...   1.815     7.875    -4.7    ]
-  #...
-  #[ -6.094    24.75     12.766   ...   5.71      6.965    -6.055  ]
-  #[ -6.71     24.72     12.85    ...   5.258     6.453    -6.688  ]
-  #[ -7.117    24.8      13.07    ...   5.035     6.414    -7.098  ]]]
 
-  #jax_debug_str("sample_weight", sample_weight)
-
-  #mask = ops.cast(ops.logical_not(ops.equal(y_true, CONFIG.token_pad)), "float32")
-  #y_true = ops.one_hot(ops.cast(y_true_idx, "int32"), CONFIG.vocabulary_size)
-  #return ops.categorical_crossentropy(y_true, y_pred, from_logits=True) * mask
-  
-  #jax.debug.print("y_true_idx.shape {v}", v=y_true_idx.shape)
-  #jax.debug.print("y_true.dtype {v}", v=y_true.dtype)
-  #y_true.shape (Array(8, dtype=int32), Array(512, dtype=int32))                             y_true.dtype float16
-  #y_pred.shape (Array(8, dtype=int32), Array(512, dtype=int32), Array(256000, dtype=int32)) y_pred.dtype float16
-  
-  #y_true = keras.ops.one_hot(keras.ops.cast(y_true, "int32"), VOCAB_SIZE)  # TOO BIG
-  #return -keras.ops.sum(y_probs*y_true, axis=-1) * mask
-  #y_true_idx = keras.ops.cast(y_true, "int32")
-  #mask.shape (Array(8, dtype=int32), Array(512, dtype=int32)) mask.dtype float16
-  #y_true.shape (Array(8, dtype=int32), Array(512, dtype=int32), Array(256000, dtype=int32)) y_true.dtype float16
-  
-  mask = keras.ops.cast(keras.ops.logical_not(keras.ops.equal(y_true, PAD_TOKEN)), y_pred.dtype)
-  #jax_debug_str("mask", mask)  # (Array(2, dtype=int32), Array(512, dtype=int32))
-  # This is 1.0 for all the non-PAD_TOKEN elements
-  
-  # https://keras.io/api/ops/nn/
-  y_logprobs = keras.ops.log_softmax(y_pred, axis=-1)
-  y_true_idx = keras.ops.cast(y_true, "int32")
-  # jax_debug_str("y_logprobs", y_logprobs) #  y_logprobs (2, 512, 256000).float16 :: Looks fine (negative numbers)
-  jax_debug_str("y_true_idx", y_true_idx)
-  # y_true_idx (Array(2, dtype=int32), Array(512, dtype=int32)).int32 = [[      6176      36128 2147483647 ...        674        798          1]
-  # [      6176      36128 2147483647 ...          0          0          0]]
-  
-  # TypeError: take_along_axis indices must be of integer type, got float16
-  # ValueError: Incompatible shapes for broadcasting: shapes=[(8, 512, 1), (8, 512)]
-  #y_chosen = keras.ops.take_along_axis(y_probs, y_true_idx[..., None], axis=-1)
-  #return -(y_chosen * mask[..., None])  # Loss should be minimised at maximum accepted probability
-  
-  y_chosen = keras.ops.squeeze( keras.ops.take_along_axis(y_logprobs, y_true_idx[..., None], axis=-1), axis=-1)
-  #jax.debug.print("y_chosen.shape {v}", v=y_chosen.shape)  # (Array(2, dtype=int32), Array(512, dtype=int32))
-  #v=y_chosen; jax.debug.print("y_chosen {shape}.{dtype} = {value}", shape=v.shape, dtype=v.dtype, value=v) 
-  jax_debug_str("y_chosen", y_chosen)
-  # y_chosen (Array(2, dtype=int32), Array(512, dtype=int32)).float16 = 
-  # [[-13.48 -20.19    nan ...   0.     0.   -15.95], [-13.48 -20.19    nan ... -33.56 -34.22 -34.72]]
-
-  #y_probs.shape (Array(8, dtype=int32), Array(512, dtype=int32), Array(256000, dtype=int32)) y_probs.dtype float16
-  #dot = keras.ops.dot(y_probs, y_true)
-  #jax.debug.print("dot.shape {v}", v=dot.shape)
-  #jax.debug.print("dot.dtype {v}", v=dot.dtype)
-  
-  # NB: Average over the token length
-  mask_count = keras.ops.sum(mask, axis=-1, keepdims=True) # How many of the tokens are unmasked?
-  # mask_count (Array(2, dtype=int32), Array(1, dtype=int32)).float16 = [[512.], [507.]]
-  #jax.debug.print("mask_count.shape {v}", v=mask_count.shape)  # (Array(2, dtype=int32), Array(1, dtype=int32))
-  #jax.debug.print("mask_count {v}", v=mask_count)              # mask_count [[512.] [507.]]
-  jax_debug_str("mask_count", mask_count)
-  
-  loss = -(y_chosen * mask/(mask_count+1e-6))  # Loss should be minimised at maximum accepted probability
-  #v=loss; jax.debug.print("loss {shape}.{dtype} = {value}", shape=v.shape, dtype=v.dtype, value=v) 
-  jax_debug_str("loss", loss)
-  # loss (2, 512).float16 = [[ 0.02632  0.03943      nan ... -0.      -0.       0.03116] [ 0.02658  0.03983      nan ... -0.      -0.      -0.     ]]
-  
-  return loss
-  
-  #return 8.
-  # TypeError: broadcast_shapes got incompatible shapes for broadcasting: (8, 512, 256000), (1, 8, 512).
-  #OR? https://keras.io/api/ops/numpy/#dot-function  
-
-PAD_TOKEN, VOCAB_SIZE
-
-
-# -
 class MaskedNegLogProb(keras.Loss):
+  
   """
   """
   
@@ -524,37 +442,46 @@ class MaskedNegLogProb(keras.Loss):
     -------
     Negative log prob of the batch (batch_size, 1), averaged across (masked) time
     """
-    jax_debug_str("y_true", y_true) # groundtruth?
-    jax_debug_str("y_pred", y_pred) # i.e. : these are the logits output by the model :: Seems fine
+    #jax_debug_str("y_true", y_true) # groundtruth as token indices (except that these are passes as float32s)
+    #jax_debug_str("y_pred", y_pred) # i.e. : these are the logits output by the model :: Seems fine
 
     mask = keras.ops.cast(keras.ops.logical_not(keras.ops.equal(y_true, PAD_TOKEN)), y_pred.dtype)
-    jax_debug_str("mask", mask)  # (Array(2, dtype=int32), Array(512, dtype=int32))
+    jax_debug_str("mask", mask)  # (2, 512) float32 (on GPU)
     # This is 1.0 for all the non-PAD_TOKEN elements
-    
+
     # https://keras.io/api/ops/nn/
     y_logprobs = keras.ops.log_softmax(y_pred, axis=-1)
-    jax_debug_str("y_logprobs", y_logprobs) #  y_logprobs (2, 512, 256000).float16 :: Looks fine (negative numbers)
-    y_true_idx = keras.ops.cast(y_true, "int32")
-    jax_debug_str("y_true_idx", y_true_idx)
+    #jax_debug_str("y_logprobs", y_logprobs) #  y_logprobs (2, 512, 256000).float16 :: Looks fine (negative numbers)
+    y_true_idx = keras.ops.cast(y_true, "int32")  # These look like int32 token indices
+    #jax_debug_str("y_true_idx", y_true_idx)
 
     y_chosen = keras.ops.squeeze( keras.ops.take_along_axis(y_logprobs, y_true_idx[..., None], axis=-1), axis=-1)
-    jax_debug_str("y_chosen", y_chosen)
-
+    #jax_debug_str("y_chosen", y_chosen)  # (2, 512).float32 # Appears to be list of logprobs at some indices...
+    
     # NB: Average over the token length
-    mask_count = keras.ops.sum(mask, axis=-1, keepdims=True) # How many of the tokens are unmasked?
-    jax_debug_str("mask_count", mask_count)
+    mask_count = keras.ops.sum(mask, axis=-1) # How many of the tokens are unmasked?
+    jax_debug_str("mask_count", mask_count)  # And array : (batch_size, ) = [ sum of masks ]  :: [246., 470.] (batch=2)
+
+    loss_sum = keras.ops.sum(y_chosen * mask, axis=-1) 
+    jax_debug_str("loss_sum", loss_sum)   # [-512.0893  -507.53668]
     
-    loss = -(y_chosen * mask/(mask_count+1e-6))  # Loss should be minimised at maximum accepted probability
+    #loss = - keras.ops.sum(y_chosen * mask, axis=-1) / (mask_count+1e-6)  # Loss should be minimised at maximum accepted probability
+
+    loss = -loss_sum/(mask_count+1e-6)
     jax_debug_str("loss", loss)  # Should be (batch_size,) so that weights can be applied
-    
+
     return loss
     
+PAD_TOKEN, VOCAB_SIZE    
+# -
+
 
 
 # ### Set up trainer / sampler
 
 # +
 gemma_lm.preprocessor.sequence_length = 512
+#gemma_lm.preprocessor.sequence_length = 16  # FIXME
 # Can add sampler with other stuff : https://keras.io/keras_hub/api/base_classes/causal_lm/
 gemma_lm.compile(
   #loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),"
@@ -564,7 +491,6 @@ gemma_lm.compile(
   #weighted_metrics=[keras.metrics.SparseCategoricalAccuracy()],
   weighted_metrics="auto", 
   sampler = keras_hub.samplers.RandomSampler(temperature=0.7),  # Also possible to add in here
-  #preprocessor=None,
 )
 #gemma_lm.summary()
 
@@ -597,6 +523,18 @@ responses, advantages = get_train_input(item_group)
 train_batch_size_on_one_device = 2 # 4 may work (HLO complaint) - but speed-up doesn't seem worth the hassle...
 
 # +
+#dir(gemma_lm.preprocessor)
+
+# +
+#gemma_lm.preprocessor.generate_preprocess(responses) 
+# generate_responses_preproc
+#   x{token_ids, padding_mask}
+
+gemma_lm.preprocessor(responses[:2])  # These are int32 ids, and bools...
+# train_responses_preproc :: 
+#   ( x{token_ids, padding_mask}, y(token_ids shifted), sample_weights(padding_mask shifted) )
+
+# +
 # https://github.com/keras-team/keras/blob/v3.8.0/keras/src/backend/jax/trainer.py#L710
 if False:
   t0=time.time()
@@ -608,12 +546,18 @@ if False:
   tms=(time.time()-t0)*1000.
   print(f"{len(responses)=:2d} : {tms:.2f}ms total = {tms/len(responses):.2f}ms each - after jit")
 
+#custom_preprocessor = gemma_lm.preprocessor
+#gemma_lm.preprocessor = None
+
 if True:
   t0=time.time()
   bs = train_batch_size_on_one_device*n_devices
   #gemma_lm.fit(x=responses, sample_weight=advantages, batch_size=bs)
   #gemma_lm.fit(x=responses[:bs], sample_weight=advantages[:bs], batch_size=bs)
-  gemma_lm.fit(x=responses[:bs], batch_size=bs) #   sample_weight=advantages[:bs], 
+  #gemma_lm.fit(x=responses[:bs], batch_size=bs) #   sample_weight=advantages[:bs], 
+  #preproc=gemma_lm.preprocessor(responses[:bs])
+  preproc=custom_preprocessor(responses[:bs])
+  gemma_lm.fit(preproc, batch_size=bs) #   sample_weight=advantages[:bs], 
   tms=(time.time()-t0)*1000.
   print(f"{len(responses)=:2d} : {tms:.2f}ms total = {tms/len(responses):.2f}ms each - after jit")
 
@@ -639,6 +583,8 @@ if True:
 #   only reduced to 10.28GiB (11043464098 bytes), down from 13.71GiB (14724338162 bytes) originally
 # -
 aha_library.beep()
+
+asdasdasd
 
 # ### Generation and Training Loop
 
