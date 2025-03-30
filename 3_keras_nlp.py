@@ -413,7 +413,7 @@ def jax_debug_str(k, v):
   
 # eg: https://keras.io/examples/generative/midi_generation_with_transformer/
 # @keras.utils.register_keras_serializable()
-def loss_log_softmax_logits(y_true, y_pred, sample_weight=None):  # sample_weight will be supplied... BUT IT ISN'T ...
+def loss_log_softmax_logits(y_true, y_pred):  # sample_weight will be supplied... BUT IT ISN'T ... , sample_weight=None
   """y_true is (batch, time)[token_idx.floatx], y_pred is (batch, time, logits)[floatx]"""
   jax_debug_str("y_true", y_true)
   # y_true (2, 512).float16 = 
@@ -434,7 +434,7 @@ def loss_log_softmax_logits(y_true, y_pred, sample_weight=None):  # sample_weigh
   #[ -6.71     24.72     12.85    ...   5.258     6.453    -6.688  ]
   #[ -7.117    24.8      13.07    ...   5.035     6.414    -7.098  ]]]
 
-  jax_debug_str("sample_weight", sample_weight)
+  #jax_debug_str("sample_weight", sample_weight)
 
   #mask = ops.cast(ops.logical_not(ops.equal(y_true, CONFIG.token_pad)), "float32")
   #y_true = ops.one_hot(ops.cast(y_true_idx, "int32"), CONFIG.vocabulary_size)
@@ -499,8 +499,56 @@ def loss_log_softmax_logits(y_true, y_pred, sample_weight=None):  # sample_weigh
   #OR? https://keras.io/api/ops/numpy/#dot-function  
 
 PAD_TOKEN, VOCAB_SIZE
-# -
 
+
+# -
+class MaskedNegLogProb(keras.Loss):
+  """
+  """
+  
+  def __init__(self, name='masked,neg_log_prob'):
+    super(MaskedNegLogProb, self).__init__(name=name)
+    #self.num_params = num_params
+    #self.num_components = num_components
+
+  def call(self, y_true, y_pred):
+    """
+    Parameters
+    ----------
+    y_true: (batch, time)
+        Groundtruth tokeniser ids of the outputs
+    y_pred: (batch, time, logits)
+        Output logits of the LLM
+
+    Returns
+    -------
+    Negative log prob of the batch (batch_size, 1), averaged across (masked) time
+    """
+    jax_debug_str("y_true", y_true) # groundtruth?
+    jax_debug_str("y_pred", y_pred) # i.e. : these are the logits output by the model :: Seems fine
+
+    mask = keras.ops.cast(keras.ops.logical_not(keras.ops.equal(y_true, PAD_TOKEN)), y_pred.dtype)
+    jax_debug_str("mask", mask)  # (Array(2, dtype=int32), Array(512, dtype=int32))
+    # This is 1.0 for all the non-PAD_TOKEN elements
+    
+    # https://keras.io/api/ops/nn/
+    y_logprobs = keras.ops.log_softmax(y_pred, axis=-1)
+    jax_debug_str("y_logprobs", y_logprobs) #  y_logprobs (2, 512, 256000).float16 :: Looks fine (negative numbers)
+    y_true_idx = keras.ops.cast(y_true, "int32")
+    jax_debug_str("y_true_idx", y_true_idx)
+
+    y_chosen = keras.ops.squeeze( keras.ops.take_along_axis(y_logprobs, y_true_idx[..., None], axis=-1), axis=-1)
+    jax_debug_str("y_chosen", y_chosen)
+
+    # NB: Average over the token length
+    mask_count = keras.ops.sum(mask, axis=-1, keepdims=True) # How many of the tokens are unmasked?
+    jax_debug_str("mask_count", mask_count)
+    
+    loss = -(y_chosen * mask/(mask_count+1e-6))  # Loss should be minimised at maximum accepted probability
+    jax_debug_str("loss", loss)  # Should be (batch_size,) so that weights can be applied
+    
+    return loss
+    
 
 
 # ### Set up trainer / sampler
@@ -510,13 +558,15 @@ gemma_lm.preprocessor.sequence_length = 512
 # Can add sampler with other stuff : https://keras.io/keras_hub/api/base_classes/causal_lm/
 gemma_lm.compile(
   #loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),"
-  loss=loss_log_softmax_logits,
+  #loss=loss_log_softmax_logits,
+  loss = MaskedNegLogProb(),
   optimizer=keras.optimizers.Adam(learning_rate=5e-5),
   #weighted_metrics=[keras.metrics.SparseCategoricalAccuracy()],
   weighted_metrics="auto", 
   sampler = keras_hub.samplers.RandomSampler(temperature=0.7),  # Also possible to add in here
+  #preprocessor=None,
 )
-gemma_lm.summary()
+#gemma_lm.summary()
 
 # GPU (standard loading):  -- changing to a 'policy' of float16 above seems to make no difference
 #   Total params: 2,620,199,168 (9.76 GB)
@@ -538,8 +588,6 @@ def get_train_input(item_arr): # (inputs=responses, sample_weights=advantages)
   return [ item['response'] for item in item_arr ], np.array([ item['advantage'] for item in item_arr ], )
 
 
-# +
-#gemma_lm.fit(data, epochs=1, batch_size=4)
 # +
 # https://keras.io/api/models/model_training_apis/
 # (inputs, ..., sample_weights)
