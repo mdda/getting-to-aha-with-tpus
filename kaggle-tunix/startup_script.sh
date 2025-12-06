@@ -36,6 +36,7 @@ fi
 #  chown -R "$JUPYTER_USER":"$JUPYTER_USER" "$MOUNT_DIR"
 #fi
 
+
 ## Install a package as 'your_username'
 #sudo -u your_username bash -c 'pip install my-package'
 
@@ -46,9 +47,9 @@ fi
 # Switch to 'your_username' and execute commands
 sudo -u ${TPU_USER} bash << EOF
   cd /home/${TPU_USER}
-  whoami
+  #whoami
 
-  pip freeze > 0-pip-freeze.log
+  pip freeze | sort > 0-pip-freeze.log
 
   # Install Jupyter and necessary packages (if not already in your VM image)
   pip install jupyter jupyterlab jupytext --user
@@ -63,6 +64,24 @@ sudo -u ${TPU_USER} bash << EOF
   # Use nohup to keep it running after the script finishes
   nohup .local/bin/jupyter lab --no-browser --ip=0.0.0.0 --port=${JUPYTER_PORT} --allow-root &
 
+
+  pip install numpy
+  pip install -U "jax[tpu]" -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
+  pip freeze | sort > 1-pip-freeze_with_jax.log
+  # JAX version: 0.6.2  ??
+
+  pip install -q git+https://github.com/google/tunix
+  pip freeze | sort > 2-pip-freeze_with_tunix.log
+
+  pip install -q git+https://github.com/google/qwix  
+  pip freeze | sort > 3-pip-freeze_with_qwix.log
+
+  #pip uninstall -q -y flax  # No need here - flax not installed yet
+  pip install --no-cache-dir git+https://github.com/google/flax.git
+  pip freeze | sort > 4-pip-freeze_with_flax.log
+
+
+
   # https://docs.cloud.google.com/compute/docs/instances/startup-scripts/linux#accessing-metadata
   #   confirmed : this does get passed to metadata store for downloading to 0-metadata.txt
   METADATA_FOO_VALUE=\$(curl http://metadata.google.internal/computeMetadata/v1/instance/attributes/foo -H "Metadata-Flavor: Google")
@@ -70,23 +89,9 @@ sudo -u ${TPU_USER} bash << EOF
 
 EOF
 
-# Does nothing (yet)
+# Does nothing ( just here as a placeholder / comment )
 cat << EOF
-  pip install numpy
-  pip install -U "jax[tpu]" -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
-  pip freeze > 1-pip-freeze_with_jax.log
-  # JAX version: 0.6.2  ??
-
-  pip install -q git+https://github.com/google/tunix
-  pip freeze > 2-pip-freeze_with_tunix.log
-
-  pip install -q git+https://github.com/google/qwix  
-  pip freeze > 3-pip-freeze_with_qwix.log
-
-  #pip uninstall -q -y flax  # No need here - flax not installed yet
-  pip install --no-cache-dir git+https://github.com/google/flax.git
-  pip freeze > 4-pip-freeze_with_flax.log
-
+  
 EOF
 
 

@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# The play command from the sox package will play any file format supported by sox 
+#   using the default audio device, e.g
+
+SOUND="${1:-bell}"
+SOUND_PATH="/usr/share/sounds/freedesktop/stereo"
+if [ ! -f ${SOUND_PATH}/${SOUND}.oga ]; then  # make sure we have a good fallback
+  SOUND="bell"
+fi
+
+if [ ! -f ${SOUND_PATH}/${SOUND}.oga ]; then  # make sure we have a good fallback
+  play -q /usr/share/sounds/alsa/Front_Center.wav  # Should always exist...
+  exit 1
+fi
+
+#play -q /usr/share/sounds/freedesktop/stereo/${SOUND}.oga
+play -q ${SOUND_PATH}/${SOUND}.oga
+

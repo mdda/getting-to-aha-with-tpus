@@ -76,16 +76,17 @@ gcloud compute tpus tpu-vm accelerator-types describe ${TPU_TYPE} --zone=${TPU_Z
 
 
 
-Create the TPU:
+### Create the TPU
 
 ```bash
-TPU_SECRET="SDFSDF"
+TPU_SECRETS="foo=SDFSDF,bar=EWEUREU"
 gcloud compute tpus tpu-vm create ${TPU_NAME} \
   --zone=${TPU_ZONE} \
   --accelerator-type=${TPU_TYPE} \
   --version=${TPU_SOFTWARE} \
   --metadata-from-file=startup-script=startup_script.sh \
-  --metadata=foo=${TPU_SECRET}
+  --metadata=${TPU_SECRETS} \
+  && ./bell_tpu service-login
 
 #  --data-disk=mode=read-write,name=YOUR_DISK_NAME
 ```
@@ -96,7 +97,8 @@ gcloud compute tpus tpu-vm create ${TPU_NAME} \
 ```bash
 gcloud compute tpus tpu-vm delete ${TPU_NAME} \
    --zone=${TPU_ZONE} \
-   --quiet
+   --quiet \
+   && ./bell_tpu service-logout
 
 #   --project=${PROJECT_ID} \    
 
@@ -106,37 +108,71 @@ gcloud compute tpus tpu-vm list # Everywhere
 ```
 
 
+### Copy up ssh key information
 
-#### Get the IP address:
-#
-#```bash
-#gcloud compute config-ssh;
-#export GCP_ADDR=`grep "Host ${TPU_NAME}" ~/.ssh/config | tail --bytes=+6`;
-#```
+```bash
+mkdir -p ./tpu_ssh/
+TPU_KEY_PATH="./tpu_ssh/id_ed25519"
+if [ ! -f ${TPU_KEY_PATH} ]; then  # Do this only once for stability
+  ssh-keygen -t ed25519 -f ${TPU_KEY_PATH} -C "TPU-machine" -N ""
+  echo "Created new ssh keys : Upload ${TPU_KEY_PATH}.pub to github"
+fi
 
-### Set up port forwarding (mainly for JupyterLab / TensorBoard / ...):
+gcloud compute tpus tpu-vm scp --zone=${TPU_ZONE} ${TPU_KEY_PATH}* tpu_user@${TPU_NAME}:~/.ssh/
+# 
+```
+
+
+### ssh into TPU with port forwarding 
+
+* port forwarding  : mainly for JupyterLab / TensorBoard / ...
 
 ```bash
 #ssh ${GCP_ADDR} -L 8585:localhost:8585 -L 8586:localhost:8586 -L 5005:localhost:5005
 # or
 #gcloud compute tpus tpu-vm ssh ${TPU_NAME} --zone=${TPU_ZONE} -- -L 8585:localhost:8585
+
 gcloud compute tpus tpu-vm ssh tpu_user@${TPU_NAME} --zone=${TPU_ZONE} -- -L 8585:localhost:8585
 # Propagating SSH public key to all TPU workers...done.   
 ```
 
-
-On the machine:
+#### Examine Startup script output
 
 ```bash
+sudo journalctl -u google-startup-scripts.service
+```
 
-andrewsm@t1v-n-dbe8fd36-w-0:~$ python --version
-Python 3.10.12
+#### See the Juypter key
+
+```bash
+.local/bin/jupyter notebook list
+```
+
+#### Get the git link going
+
+```bash
+TPU_REPO_USER="mdda"
+TPU_REPO="getting-to-aha-with-tpus"
+
+git clone git@github.com:${TPU_REPO_USER}/${TPU_REPO}.git
+cd ${TPU_REPO}
+git config --global user.email "TPU-Machine@example.com"
+git config --global user.name "TPU-Machine"
+
+```
+
+
+#### On the machine = Notes
+
+```bash
+tpu_user@t1v-n-dbe8fd36-w-0:~$ python --version
+# Python 3.10.12
 
 pip --version
-pip 22.0.2 from /usr/lib/python3/dist-packages/pip (python 3.10)
+# pip 22.0.2 from /usr/lib/python3/dist-packages/pip (python 3.10)
 
 echo ${PATH}
-/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+# /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
 
 .local/bin/jupyter lab --no-browser --ip=0.0.0.0 --port=$JUPYTER_PORT --allow-root
 # Works!
@@ -145,22 +181,19 @@ top
 # MiB Mem : 386884.3 total, 381996.2 free,   2201.3 used,   2686.8 buff/cache
 
 df -h
-Filesystem      Size  Used Avail Use% Mounted on
-/dev/root        97G  9.0G   88G  10% /
-tmpfs           189G     0  189G   0% /dev/shm
-tmpfs            76G  2.7M   76G   1% /run
-tmpfs           5.0M     0  5.0M   0% /run/lock
-efivarfs         56K   24K   27K  48% /sys/firmware/efi/efivars
-/dev/sda15      105M  6.1M   99M   6% /boot/efi
-tmpfs            38G  4.0K   38G   1% /run/user/2001
+#Filesystem      Size  Used Avail Use% Mounted on
+#/dev/root        97G  9.0G   88G  10% /
+#tmpfs           189G     0  189G   0% /dev/shm
+#tmpfs            76G  2.7M   76G   1% /run
+#tmpfs           5.0M     0  5.0M   0% /run/lock
+#efivarfs         56K   24K   27K  48% /sys/firmware/efi/efivars
+#/dev/sda15      105M  6.1M   99M   6% /boot/efi
+#tmpfs            38G  4.0K   38G   1% /run/user/2001
 ```
 
-### Examine Startup script output
 
-```bash
-sudo journalctl -u google-startup-scripts.service
-```
 
+---
 
 ### Mount drive locally?
 
@@ -176,29 +209,28 @@ fusermount -u ./gcp_base
 ```
 
 
-
-
-
-
-
 ## Attach storage?
 
 * [attach-durable-block-storage](https://docs.cloud.google.com/tpu/docs/attach-durable-block-storage)
-
 
 
 ## Notes
 
 ```bash
 gcloud compute tpus tpu-vm accelerator-types describe v5litepod-8 --zone=asia-east1-c
-<!--
-acceleratorConfigs:
-- topology: 2x4
-  type: V5LITE_POD
-name: projects/rdai-tpu-mdda/locations/asia-east1-c/acceleratorTypes/v5litepod-8
-type: v5litepod-8
-!-->
-
+#acceleratorConfigs:
+#- topology: 2x4
+#  type: V5LITE_POD
+#name: projects/rdai-tpu-mdda/locations/asia-east1-c/acceleratorTypes/v5litepod-8
+#type: v5litepod-8
 ```
+
+
+;#### Get the IP address:
+;#
+;#```bash
+;#gcloud compute config-ssh;
+;#export GCP_ADDR=`grep "Host ${TPU_NAME}" ~/.ssh/config | tail --bytes=+6`;
+;#```
 
 
