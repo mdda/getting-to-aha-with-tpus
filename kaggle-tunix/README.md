@@ -94,13 +94,14 @@ gcloud compute tpus tpu-vm create ${TPU_NAME} \
 
 ### Delete the TPU
 
+* MAKE SURE TO DO THIS!
+  - keeping this close to creation command just to be sure it isn't missed
+
 ```bash
 gcloud compute tpus tpu-vm delete ${TPU_NAME} \
    --zone=${TPU_ZONE} \
    --quiet \
    && ./bell_tpu service-logout
-
-#   --project=${PROJECT_ID} \    
 
 # Check : 
 gcloud compute tpus tpu-vm list --zone=${TPU_ZONE}
@@ -119,7 +120,8 @@ if [ ! -f ${TPU_KEY_PATH} ]; then  # Do this only once for stability
 fi
 
 gcloud compute tpus tpu-vm scp --zone=${TPU_ZONE} ${TPU_KEY_PATH}* tpu_user@${TPU_NAME}:~/.ssh/
-# 
+# TODO: CHECK THIS WORKS (i.e. ~/.ssh exists already)
+#   If not, create directory (with correct permissions) in the startup script...
 ```
 
 

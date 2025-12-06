@@ -70,16 +70,17 @@ sudo -u ${TPU_USER} bash << EOF
   pip freeze | sort > 1-pip-freeze_with_jax.log
   # JAX version: 0.6.2  ??
 
-  pip install -q git+https://github.com/google/tunix
+  pip install git+https://github.com/google/tunix
   pip freeze | sort > 2-pip-freeze_with_tunix.log
 
-  pip install -q git+https://github.com/google/qwix  
+  # Do these *do* anything? : Check manually...
+  pip install git+https://github.com/google/qwix  
   pip freeze | sort > 3-pip-freeze_with_qwix.log
 
+  # Do these *do* anything? : Check manually...
   #pip uninstall -q -y flax  # No need here - flax not installed yet
   pip install --no-cache-dir git+https://github.com/google/flax.git
   pip freeze | sort > 4-pip-freeze_with_flax.log
-
 
 
   # https://docs.cloud.google.com/compute/docs/instances/startup-scripts/linux#accessing-metadata
