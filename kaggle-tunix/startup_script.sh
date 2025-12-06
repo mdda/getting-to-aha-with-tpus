@@ -4,11 +4,19 @@
 #MOUNT_DIR="/mnt/data"
 #DISK_NAME="YOUR_DISK_DEVICE_NAME" # Often something like 'sdb' or 'sdf'
 
+# NB: Not using actual GCP username here : 
+#   Could check with : `gcloud compute os-login describe-profile` (but didn't want to...)
+TPU_USER=tpu_user
 
-# Your actual GCP username : Check with : `gcloud compute os-login describe-profile`
-JUPYTER_USER="YOUR_USERNAME" 
-
+JUPYTER_USER=${TPU_USER}
 JUPYTER_PORT=8585
+
+
+# Ensure the user exists (replace 'your_username' with the actual username)
+if ! id ${TPU_USER} &>/dev/null; then
+  useradd -m ${TPU_USER}
+fi
+
 
 ## Check if the disk is already mounted (optional but good practice)
 #if ! mountpoint -q "$MOUNT_DIR"; then
@@ -28,13 +36,50 @@ JUPYTER_PORT=8585
 #  chown -R "$JUPYTER_USER":"$JUPYTER_USER" "$MOUNT_DIR"
 #fi
 
-# Install Jupyter and necessary packages (if not already in your VM image)
-# Run as the user
+## Install a package as 'your_username'
+#sudo -u your_username bash -c 'pip install my-package'
 
-su - "$JUPYTER_USER" -c "pip install jupyter jupyterlab --user"
+## Run a script as 'your_username'
+#sudo -u your_username /home/your_username/myscript.sh
 
-# Start JupyterLab server in the background as the user
-# Use --no-browser and --ip=0.0.0.0 to make it accessible remotely
-# Use nohup to keep it running after the script finishes
-su - "$JUPYTER_USER" -c "nohup jupyter lab --no-browser --ip=0.0.0.0 --port=$JUPYTER_PORT --allow-root &"
+
+# Switch to 'your_username' and execute commands
+sudo -u ${TPU_USER} bash << EOF
+  cd ~
+  
+  pip freeze > 0-pip-freeze.log
+
+  # Install Jupyter and necessary packages (if not already in your VM image)
+  pip install jupyter jupyterlab --user
+
+  #  WARNING: The scripts jlpm, jupyter-lab, jupyter-labextension and jupyter-labhub 
+  #    are installed in '/home/tpu_user/.local/bin' which is not on PATH.
+  #  Consider adding this directory to PATH 
+  #    or, if you prefer to suppress this warning, use --no-warn-script-location.
+
+  # Start JupyterLab server in the background as the user
+  # Use --no-browser and --ip=0.0.0.0 to make it accessible remotely
+  # Use nohup to keep it running after the script finishes
+  nohup .local/bin/jupyter lab --no-browser --ip=0.0.0.0 --port=${JUPYTER_PORT} --allow-root &
+
+EOF
+
+# Does nothing (yet)
+cat << EOF
+  pip install numpy
+  pip install -U "jax[tpu]" -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
+  pip freeze > 1-pip-freeze_with_jax.log
+
+  pip install -q git+https://github.com/google/tunix
+  pip freeze > 2-pip-freeze_with_tunix.log
+
+  pip install -q git+https://github.com/google/qwix  
+  pip freeze > 3-pip-freeze_with_qwix.log
+
+  pip uninstall -q -y flax
+  pip install --no-cache-dir git+https://github.com/google/flax.git
+  pip freeze > 4-pip-freeze_with_flax.log
+
+EOF
+
 
