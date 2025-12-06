@@ -44,15 +44,17 @@ gcloud beta services identity create --service tpu.googleapis.com # --project DE
 ```bash
 export TPU_NAME="kaggle-tpu-paid"
 export TPU_TYPE="v5litepod-8"
+export TPU_TYPE="v5litepod-1"  #  Lower cost while testing out startup scripts
 export TPU_SOFTWARE="v2-alpha-tpuv5-lite"
 
-#export TPU_ZONE="us-central1-f"     # DOES NOT offer me v5e-8
-#export TPU_ZONE="us-central1-a"     # $1.20 per hour : NO PERMISSION
-#export TPU_ZONE="us-west1-c"        # $1.20 per hour (Oregon) : NO PERMISSION
-#export TPU_ZONE="us-west4-a"        # $1.20 per hour (Vegas) : NO PERMISSION
-export TPU_ZONE="asia-east1-c"       # $>?? per hour  (NO CAPACITY)
-#export TPU_ZONE="asia-southeast1-b" # $1.56 per hour (but not on Where are the TPUs page) : UNKNOWN!
-#export TPU_ZONE="asia-southeast1-c" # $1.56 per hour (but not on Where are the TPUs page) : UNKNOWN!
+### Broken (old?) project
+##export TPU_ZONE="us-central1-f"     # DOES NOT offer me v5e-8
+##export TPU_ZONE="us-central1-a"     # $1.20 per hour : NO PERMISSION
+##export TPU_ZONE="us-west1-c"        # $1.20 per hour (Oregon) : NO PERMISSION
+##export TPU_ZONE="us-west4-a"        # $1.20 per hour (Vegas) : NO PERMISSION
+#export TPU_ZONE="asia-east1-c"       # $>?? per hour  (NO CAPACITY)
+##export TPU_ZONE="asia-southeast1-b" # $1.56 per hour (but not on Where are the TPUs page) : UNKNOWN!
+##export TPU_ZONE="asia-southeast1-c" # $1.56 per hour (but not on Where are the TPUs page) : UNKNOWN!
 
 #export TPU_ZONE="us-central1-f"     # DOES NOT offer me v5e-8
 #export TPU_ZONE="us-central1-a"     # $1.20 per hour : (no more capacity)
@@ -68,6 +70,7 @@ Check the location has required TPUs:
 *  eg: `gcloud compute tpus tpu-vm accelerator-types describe v5litepod-8 --zone=us-central1-a`
 
 ```bash
+gcloud compute tpus accelerator-types list --zone=${TPU_ZONE}
 gcloud compute tpus tpu-vm accelerator-types describe ${TPU_TYPE} --zone=${TPU_ZONE}
 ```
 
@@ -76,13 +79,13 @@ gcloud compute tpus tpu-vm accelerator-types describe ${TPU_TYPE} --zone=${TPU_Z
 Create the TPU:
 
 ```bash
+TPU_SECRET="SDFSDF"
 gcloud compute tpus tpu-vm create ${TPU_NAME} \
   --zone=${TPU_ZONE} \
   --accelerator-type=${TPU_TYPE} \
-  --version=${TPU_SOFTWARE}
-  
-#   \
-#  --metadata-from-file=startup-script=startup_script.sh  
+  --version=${TPU_SOFTWARE} \
+  --metadata-from-file=startup-script=startup_script.sh \
+  --metadata=foo=${TPU_SECRET}
 
 #  --data-disk=mode=read-write,name=YOUR_DISK_NAME
 ```
@@ -96,6 +99,10 @@ gcloud compute tpus tpu-vm delete ${TPU_NAME} \
    --quiet
 
 #   --project=${PROJECT_ID} \    
+
+# Check : 
+gcloud compute tpus tpu-vm list --zone=${TPU_ZONE}
+gcloud compute tpus tpu-vm list # Everywhere
 ```
 
 
@@ -112,26 +119,15 @@ gcloud compute tpus tpu-vm delete ${TPU_NAME} \
 ```bash
 #ssh ${GCP_ADDR} -L 8585:localhost:8585 -L 8586:localhost:8586 -L 5005:localhost:5005
 # or
-gcloud compute tpus tpu-vm ssh ${TPU_NAME} --zone=${TPU_ZONE} -- -L 8585:localhost:8585
+#gcloud compute tpus tpu-vm ssh ${TPU_NAME} --zone=${TPU_ZONE} -- -L 8585:localhost:8585
+gcloud compute tpus tpu-vm ssh tpu_user@${TPU_NAME} --zone=${TPU_ZONE} -- -L 8585:localhost:8585
+# Propagating SSH public key to all TPU workers...done.   
 ```
 
 
 On the machine:
 
 ```bash
-whoami
-andrewsm
-
-pwd
-/home/andrewsm
-
-ls -l /home/
-total 16
-drwxr-x--- 4 andrewsm    andrewsm    4096 Dec  6 08:16 andrewsm
-drwx------ 3 root        root        4096 Dec  6 08:14 root
-drwxr-xr-x 4 tpu-runtime tpu-runtime 4096 Dec  6 08:14 tpu-runtime
-drwxr-x--- 3 ubuntu      ubuntu      4096 Jul 18  2024 ubuntu
-
 
 andrewsm@t1v-n-dbe8fd36-w-0:~$ python --version
 Python 3.10.12
@@ -145,10 +141,6 @@ echo ${PATH}
 .local/bin/jupyter lab --no-browser --ip=0.0.0.0 --port=$JUPYTER_PORT --allow-root
 # Works!
 
-# http://127.0.0.1:8585/lab?token=86d2685e2d1db15ec931091187e31f547ddadeae0da06e6e
-pip freeze | grep jax
-# NOTHING
-
 top
 # MiB Mem : 386884.3 total, 381996.2 free,   2201.3 used,   2686.8 buff/cache
 
@@ -161,8 +153,12 @@ tmpfs           5.0M     0  5.0M   0% /run/lock
 efivarfs         56K   24K   27K  48% /sys/firmware/efi/efivars
 /dev/sda15      105M  6.1M   99M   6% /boot/efi
 tmpfs            38G  4.0K   38G   1% /run/user/2001
+```
 
+### Examine Startup script output
 
+```bash
+sudo journalctl -u google-startup-scripts.service
 ```
 
 
