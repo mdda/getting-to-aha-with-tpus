@@ -17,6 +17,9 @@ if ! id ${TPU_USER} &>/dev/null; then
   useradd -m ${TPU_USER}
 fi
 
+apt-get update -y 
+apt install python3.12 python3.12-venv -y 
+
 
 ## Check if the disk is already mounted (optional but good practice)
 #if ! mountpoint -q "$MOUNT_DIR"; then
@@ -49,44 +52,46 @@ sudo -u ${TPU_USER} bash << EOF
   cd /home/${TPU_USER}
   #whoami
 
-  pip freeze | sort > 0-pip-freeze.log
+  python3.12 -m venv ./env-tpu
+  source ./env-tpu/bin/activate
 
-  # Install Jupyter and necessary packages (if not already in your VM image)
-  pip install jupyter jupyterlab jupytext --user
+  pip install -U pip
+  pip freeze | sort > 0-pip-freeze.log  # NOTHING!
 
-  #  WARNING: The scripts jlpm, jupyter-lab, jupyter-labextension and jupyter-labhub 
-  #    are installed in '/home/tpu_user/.local/bin' which is not on PATH.
-  #  Consider adding this directory to PATH 
-  #    or, if you prefer to suppress this warning, use --no-warn-script-location.
+
+  # Install Jupyter and necessary packages
+  pip install jupyter jupyterlab jupytext
+  pip freeze | sort > 1-pip-freeze_with_jupyter.log
 
   # Start JupyterLab server in the background as the user
-  # Use --no-browser and --ip=0.0.0.0 to make it accessible remotely
-  # Use nohup to keep it running after the script finishes
-  nohup .local/bin/jupyter lab --no-browser --ip=0.0.0.0 --port=${JUPYTER_PORT} --allow-root &
+  #   Use --no-browser and --ip=0.0.0.0 to make it accessible remotely
+  #   Use nohup to keep it running after the script finishes
+  nohup jupyter lab --no-browser --ip=0.0.0.0 --port=${JUPYTER_PORT} --allow-root &
 
 
-  pip install numpy
   pip install -U "jax[tpu]" -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
-  pip freeze | sort > 1-pip-freeze_with_jax.log
-  # JAX version: 0.6.2  ??
+  # 0.6.2 (with Python 3.10 installed == BAD CHOICE)
+  # 0.8.1 (with Python 3.12 installed)
+  pip freeze | sort > 2-pip-freeze_with_jax.log
 
-  pip install git+https://github.com/google/tunix
-  pip freeze | sort > 2-pip-freeze_with_tunix.log
+  #pip install --no-cache-dir git+https://github.com/google/flax.git
+  pip install git+https://github.com/google/flax.git
+  pip freeze | sort > 3-pip-freeze_with_flax.log
 
-  # Do these *do* anything? : Check manually...
-  pip install git+https://github.com/google/qwix  
-  pip freeze | sort > 3-pip-freeze_with_qwix.log
+  pip install git+https://github.com/google/tunix git+https://github.com/google/qwix
+  pip freeze | sort > 4-pip-freeze_with_tunix-qwix.log
 
-  # Do these *do* anything? : Check manually...
-  #pip uninstall -q -y flax  # No need here - flax not installed yet
-  pip install --no-cache-dir git+https://github.com/google/flax.git
-  pip freeze | sort > 4-pip-freeze_with_flax.log
 
 
   # https://docs.cloud.google.com/compute/docs/instances/startup-scripts/linux#accessing-metadata
-  #   confirmed : this does get passed to metadata store for downloading to 0-metadata.txt
+  #   WORKS confirmed : this does get passed to metadata store for downloading to 0-metadata.txt
   METADATA_FOO_VALUE=\$(curl http://metadata.google.internal/computeMetadata/v1/instance/attributes/foo -H "Metadata-Flavor: Google")
   echo \${METADATA_FOO_VALUE} > 0-metadata.txt
+
+  # Interesting:
+  # curl http://metadata.google.internal/computeMetadata/v1/instance/ -H "Metadata-Flavor: Google"
+  #   gives us back a bunch of information in (apparently) a nice structure
+  # eg: .../instance/machine-type -> "projects/714NNNNNNN0/machineTypes/n2d-48-24-v5lite-tpu"
 
 EOF
 

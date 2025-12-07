@@ -120,34 +120,29 @@ if [ ! -f ${TPU_KEY_PATH} ]; then  # Do this only once for stability
 fi
 
 gcloud compute tpus tpu-vm scp --zone=${TPU_ZONE} ${TPU_KEY_PATH}* tpu_user@${TPU_NAME}:~/.ssh/
-# TODO: CHECK THIS WORKS (i.e. ~/.ssh exists already)
-#   If not, create directory (with correct permissions) in the startup script...
+# Actually, this works!  Because the first connection to the tpu-vm propagates SSH public keys first
 ```
 
 
 ### ssh into TPU with port forwarding 
 
-* port forwarding  : mainly for JupyterLab / TensorBoard / ...
+* port forwarding is for JupyterLab / TensorBoard / ...
 
 ```bash
 #ssh ${GCP_ADDR} -L 8585:localhost:8585 -L 8586:localhost:8586 -L 5005:localhost:5005
-# or
-#gcloud compute tpus tpu-vm ssh ${TPU_NAME} --zone=${TPU_ZONE} -- -L 8585:localhost:8585
 
 gcloud compute tpus tpu-vm ssh tpu_user@${TPU_NAME} --zone=${TPU_ZONE} -- -L 8585:localhost:8585
 # Propagating SSH public key to all TPU workers...done.   
-```
 
-#### Examine Startup script output
-
-```bash
-sudo journalctl -u google-startup-scripts.service
 ```
 
 #### See the Juypter key
 
 ```bash
-.local/bin/jupyter notebook list
+# Start using the environment (on the TPU machine)
+. env-tpu/bin activate
+
+jupyter notebook list
 ```
 
 #### Get the git link going
@@ -156,6 +151,8 @@ sudo journalctl -u google-startup-scripts.service
 TPU_REPO_USER="mdda"
 TPU_REPO="getting-to-aha-with-tpus"
 
+touch ~/.ssh/known_hosts
+echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" >> ~/.ssh/known_hosts
 git clone git@github.com:${TPU_REPO_USER}/${TPU_REPO}.git
 cd ${TPU_REPO}
 git config --global user.email "TPU-Machine@example.com"
@@ -163,6 +160,15 @@ git config --global user.name "TPU-Machine"
 
 ```
 
+
+### Notes during development
+
+
+#### Examine Startup script output
+
+```bash
+sudo journalctl -u google-startup-scripts.service
+```
 
 #### On the machine = Notes
 
@@ -193,8 +199,6 @@ df -h
 #tmpfs            38G  4.0K   38G   1% /run/user/2001
 ```
 
-
-
 ---
 
 ### Mount drive locally?
@@ -204,7 +208,7 @@ sshfs ${GCP_ADDR}:. ./gcp_base -o reconnect -o follow_symlinks
 
 ```
 
-Unmount drive locally?
+#### Unmount drive locally?
 
 ```bash
 fusermount -u ./gcp_base
@@ -216,7 +220,7 @@ fusermount -u ./gcp_base
 * [attach-durable-block-storage](https://docs.cloud.google.com/tpu/docs/attach-durable-block-storage)
 
 
-## Notes
+## Other Notes
 
 ```bash
 gcloud compute tpus tpu-vm accelerator-types describe v5litepod-8 --zone=asia-east1-c
