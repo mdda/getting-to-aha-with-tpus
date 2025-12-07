@@ -94,7 +94,7 @@ gcloud compute tpus tpu-vm create ${TPU_NAME} \
 
 ### Delete the TPU
 
-* MAKE SURE TO DO THIS!
+* MAKE SURE TO DO THIS ONCE YOU HAVE FINISHED!
   - keeping this close to creation command just to be sure it isn't missed
 
 ```bash
@@ -119,8 +119,11 @@ if [ ! -f ${TPU_KEY_PATH} ]; then  # Do this only once for stability
   echo "Created new ssh keys : Upload ${TPU_KEY_PATH}.pub to github"
 fi
 
+TPU_KAGGLE="./tpu_kaggle/kaggle.json"
+
 gcloud compute tpus tpu-vm scp --zone=${TPU_ZONE} ${TPU_KEY_PATH}* tpu_user@${TPU_NAME}:~/.ssh/
 # Actually, this works!  Because the first connection to the tpu-vm propagates SSH public keys first
+gcloud compute tpus tpu-vm scp --zone=${TPU_ZONE} ${TPU_KAGGLE}* tpu_user@${TPU_NAME}:~/.kaggle/
 ```
 
 
@@ -146,6 +149,8 @@ jupyter notebook list
 ```
 
 #### Get the git link going
+
+* Populate `known_hosts` with hash taken from [GitHub itself](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints) to avoid being asked to check
 
 ```bash
 TPU_REPO_USER="mdda"
