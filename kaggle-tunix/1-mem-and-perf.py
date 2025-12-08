@@ -48,6 +48,7 @@ def show_hbm_usage():
 show_hbm_usage()    
 # -
 
+from tqdm import tqdm_notebook as tqdm
 import kagglehub
 #os.environ['KAGGLE_USERNAME']=""
 #os.environ['KAGGLE_KEY']=""
@@ -88,7 +89,7 @@ print("Path to model files:", path)
 
 
 from dotenv import load_dotenv
-if not load_dotenv('~/.env', override=True):
+if not load_dotenv(override=True):
   load_dotenv('./tpu_dotenv/dotenv', override=True)
 
 
