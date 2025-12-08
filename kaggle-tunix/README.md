@@ -143,7 +143,7 @@ gcloud compute tpus tpu-vm ssh tpu_user@${TPU_NAME} --zone=${TPU_ZONE} -- -L 858
 
 ```bash
 # Start using the environment (on the TPU machine)
-. env-tpu/bin activate
+. ~/env-tpu/bin/activate
 
 jupyter notebook list
 ```
