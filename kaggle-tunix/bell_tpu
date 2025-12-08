@@ -16,9 +16,10 @@ if [ ! -f ${SOUND_PATH}/${SOUND}.oga ]; then  # make sure we have a good fallbac
   # `dnf provides /usr/share/sounds/alsa/Front_Center.wav `
   ## alsa-utils (@System)
   play -q /usr/share/sounds/alsa/Front_Center.wav  # Should always exist...
-  exit 1
+  exit 0
 fi
 
-#play -q /usr/share/sounds/freedesktop/stereo/${SOUND}.oga
 play -q ${SOUND_PATH}/${SOUND}.oga
 
+# https://unix.stackexchange.com/questions/632670/the-paradox-of-logical-and-and-or-in-a-bash-script-to-check-the-succes
+exit 0
