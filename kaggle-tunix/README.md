@@ -109,7 +109,7 @@ gcloud compute tpus tpu-vm list # Everywhere
 ```
 
 
-### Copy up ssh key information
+### Copy up ssh_key information (and `.env` settings)
 
 ```bash
 mkdir -p ./tpu_ssh/
@@ -119,11 +119,11 @@ if [ ! -f ${TPU_KEY_PATH} ]; then  # Do this only once for stability
   echo "Created new ssh keys : Upload ${TPU_KEY_PATH}.pub to github"
 fi
 
-TPU_KAGGLE="./tpu_kaggle/kaggle.json"
-
 gcloud compute tpus tpu-vm scp --zone=${TPU_ZONE} ${TPU_KEY_PATH}* tpu_user@${TPU_NAME}:~/.ssh/
 # Actually, this works!  Because the first connection to the tpu-vm propagates SSH public keys first
-gcloud compute tpus tpu-vm scp --zone=${TPU_ZONE} ${TPU_KAGGLE}* tpu_user@${TPU_NAME}:~/.kaggle/
+
+TPU_DOTENV="./tpu_dotenv/dotenv"
+gcloud compute tpus tpu-vm scp --zone=${TPU_ZONE} ${TPU_DOTENV} tpu_user@${TPU_NAME}:~/.env
 ```
 
 
@@ -164,6 +164,8 @@ git config --global user.email "TPU-Machine@example.com"
 git config --global user.name "TPU-Machine"
 
 ```
+
+
 
 
 ### Notes during development

@@ -52,7 +52,13 @@ import kagglehub
 #os.environ['KAGGLE_USERNAME']=""
 #os.environ['KAGGLE_KEY']=""
 
-KAGGLE_MODEL_HANDLE = "google/gemma-3/transformers/gemma-3-1b-it"
+# +
+#?? KAGGLE_MODEL_HANDLE = "google/gemma-3/transformers/gemma-3-1b-it"
+
+# https://www.kaggle.com/code/windmaple/grpo-demo-gemma2-2b
+#KAGGLE_MODEL_HANDLE = "google/gemma-2/flax/gemma2-2b-it"  
+
+KAGGLE_MODEL_HANDLE = "google/gemma-3/flax/gemma3-1b-it"  
 
 # +
 from tunix.models.gemma3 import model as gemma_lib
@@ -60,11 +66,38 @@ from tunix.models.gemma3 import params_safetensors as params_safetensors_lib
 from tunix.generate import tokenizer_adapter as tokenizer_lib
 
 print(f"Model handle: {KAGGLE_MODEL_HANDLE}")
+# -
 
 local_model_path = kagglehub.model_download(KAGGLE_MODEL_HANDLE)
 print(f"✓ Model downloaded to: {local_model_path}")
+
+model_config = gemma_lib.ModelConfig.gemma3_1b()
+
+import kagglehub
+#kagglehub.login()
+
+# +
+# https://github.com/Kaggle/kagglehub/issues/146
+
+# Download latest version
+path = kagglehub.model_download("google/gemma-3/flax/gemma3-1b-it")
+
+print("Path to model files:", path)
 # -
 
-os.environ['KAGGLE_USERNAME']
+
+
+from dotenv import load_dotenv
+if not load_dotenv('~/.env', override=True):
+  load_dotenv('./tpu_dotenv/dotenv', override=True)
+
+
+import os
+os.environ['KAGGLE_USERNAME'], os.environ['KAGGLE_KEY'], 
+
+# +
+#import kagglehub
+#kagglehub.model_download('google/bert/tensorFlow2/answer-equivalence-bem', force_download=True)
+# -
 
 

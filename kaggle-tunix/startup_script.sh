@@ -62,7 +62,7 @@ sudo -u ${TPU_USER} bash << EOF
 
 
   # Install Jupyter and necessary packages
-  pip install jupyter jupyterlab jupytext
+  pip install jupyter jupyterlab jupytext ipywidgets
   pip freeze | sort > 1-pip-freeze_with_jupyter.log
 
   # Start JupyterLab server in the background as the user
@@ -82,7 +82,7 @@ sudo -u ${TPU_USER} bash << EOF
 
   pip install git+https://github.com/google/tunix git+https://github.com/google/qwix
   pip freeze | sort > 4-pip-freeze_with_tunix-qwix.log
-  # This one also gives us kagglehub!
+  # This one also gives us kagglehub and dotenv!
 
 
   # https://docs.cloud.google.com/compute/docs/instances/startup-scripts/linux#accessing-metadata
