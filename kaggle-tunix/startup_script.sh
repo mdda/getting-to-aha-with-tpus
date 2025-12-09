@@ -53,13 +53,12 @@ fi
 sudo -u ${TPU_USER} bash << EOF
   cd /home/${TPU_USER}
   #whoami
+  #mkdir -p ~/.kaggle/
 
   # This `curl|sh` is hateful : But it is the current solution...
   curl -LsSf https://astral.sh/uv/install.sh | sh
   # The followin puts 'uv' and 'uvx' in the PATH
-  source $HOME/.local/bin/env  
-
-  mkdir -p ~/.kaggle/
+  source ./.local/bin/env  
 
   #python3.12 -m venv ./env-tpu
   # https://docs.astral.sh/uv/guides/install-python/
