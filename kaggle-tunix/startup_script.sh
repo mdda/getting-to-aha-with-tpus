@@ -17,8 +17,10 @@ if ! id ${TPU_USER} &>/dev/null; then
   useradd -m ${TPU_USER}
 fi
 
-apt-get update -y 
-apt install python3.12 python3.12-venv -y 
+# Upgrading system python is a NONO ...
+#systemctl stop unattended-upgrades
+#apt-get update -y 
+#apt install python3.12 python3.12-venv -y 
 
 
 ## Check if the disk is already mounted (optional but good practice)
@@ -52,36 +54,39 @@ sudo -u ${TPU_USER} bash << EOF
   cd /home/${TPU_USER}
   #whoami
 
+  # This `curl|sh` is hateful : But it is the current solution...
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  # The followin puts 'uv' and 'uvx' in the PATH
+  source $HOME/.local/bin/env  
+
   mkdir -p ~/.kaggle/
 
-  python3.12 -m venv ./env-tpu
+  #python3.12 -m venv ./env-tpu
+  # https://docs.astral.sh/uv/guides/install-python/
+  #uv python install 3.12.12  # Or in 1 step...
+  uv venv --python 3.12 ./env-tpu
+
   source ./env-tpu/bin/activate
 
-  pip install -U pip
-  pip freeze | sort > 0-pip-freeze.log  # NOTHING!
+  #pip install -U pip
+  uv pip freeze | sort > 0-pip-freeze.log  # NOTHING!
 
 
   # Install Jupyter and necessary packages
-  pip install jupyter jupyterlab jupytext ipywidgets
-  pip freeze | sort > 1-pip-freeze_with_jupyter.log
+  uv pip install jupyter jupyterlab jupytext ipywidgets
+  uv pip freeze | sort > 1-pip-freeze_with_jupyter.log
 
-  # Start JupyterLab server in the background as the user
-  #   Use --no-browser and --ip=0.0.0.0 to make it accessible remotely
-  #   Use nohup to keep it running after the script finishes
-  nohup jupyter lab --no-browser --ip=0.0.0.0 --port=${JUPYTER_PORT} --allow-root &
-
-
-  pip install -U "jax[tpu]" -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
+  uv pip install -U "jax[tpu]" -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
   # 0.6.2 (with Python 3.10 installed == BAD CHOICE)
   # 0.8.1 (with Python 3.12 installed)
-  pip freeze | sort > 2-pip-freeze_with_jax.log
+  uv pip freeze | sort > 2-pip-freeze_with_jax.log
 
-  #pip install --no-cache-dir git+https://github.com/google/flax.git
-  pip install git+https://github.com/google/flax.git
-  pip freeze | sort > 3-pip-freeze_with_flax.log
+  #uv pip install --no-cache-dir git+https://github.com/google/flax.git
+  uv pip install git+https://github.com/google/flax.git
+  uv pip freeze | sort > 3-pip-freeze_with_flax.log
 
-  pip install git+https://github.com/google/tunix git+https://github.com/google/qwix
-  pip freeze | sort > 4-pip-freeze_with_tunix-qwix.log
+  uv pip install git+https://github.com/google/tunix git+https://github.com/google/qwix
+  uv pip freeze | sort > 4-pip-freeze_with_tunix-qwix.log
   # This one also gives us kagglehub and dotenv!
 
 
@@ -95,11 +100,14 @@ sudo -u ${TPU_USER} bash << EOF
   #   gives us back a bunch of information in (apparently) a nice structure
   # eg: .../instance/machine-type -> "projects/714NNNNNNN0/machineTypes/n2d-48-24-v5lite-tpu"
 
+  # Start JupyterLab server in the background as the user
+  #   Use --no-browser and --ip=0.0.0.0 to make it accessible remotely
+  #   Use nohup to keep it running after the script finishes
+  nohup jupyter lab --no-browser --ip=0.0.0.0 --port=${JUPYTER_PORT} --allow-root &
+
 EOF
 
 # Does nothing ( just here as a placeholder / comment )
 cat << EOF
   
 EOF
-
-
