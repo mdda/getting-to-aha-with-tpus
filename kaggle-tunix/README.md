@@ -101,8 +101,9 @@ gcloud compute tpus tpu-vm create ${TPU_NAME} \
 gcloud compute tpus tpu-vm delete ${TPU_NAME} \
    --zone=${TPU_ZONE} \
    --quiet \
-   && ./bell_tpu service-logout
-
+   && ./bell_tpu service-logout \
+   && gcloud compute tpus tpu-vm list
+   
 # Check : 
 gcloud compute tpus tpu-vm list --zone=${TPU_ZONE}
 gcloud compute tpus tpu-vm list # Everywhere
