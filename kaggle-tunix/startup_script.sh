@@ -22,6 +22,9 @@ fi
 #apt-get update -y 
 #apt install python3.12 python3.12-venv -y 
 
+# Nicer way of getting 'uv' than curl|sh ...
+snap install astral-uv --classic
+
 
 ## Check if the disk is already mounted (optional but good practice)
 #if ! mountpoint -q "$MOUNT_DIR"; then
@@ -56,9 +59,9 @@ sudo -u ${TPU_USER} bash << EOF
   #mkdir -p ~/.kaggle/
 
   # This `curl|sh` is hateful : But it is the current solution...
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  # The followin puts 'uv' and 'uvx' in the PATH
-  source ./.local/bin/env  
+  #curl -LsSf https://astral.sh/uv/install.sh | sh
+  # The following puts 'uv' and 'uvx' in the PATH
+  #source ./.local/bin/env  
 
   #python3.12 -m venv ./env-tpu
   # https://docs.astral.sh/uv/guides/install-python/
