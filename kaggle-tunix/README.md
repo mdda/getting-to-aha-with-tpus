@@ -103,7 +103,7 @@ gcloud compute tpus tpu-vm delete ${TPU_NAME} \
    --quiet \
    && ./bell_tpu service-logout \
    && gcloud compute tpus tpu-vm list
-   
+
 # Check : 
 gcloud compute tpus tpu-vm list --zone=${TPU_ZONE}
 gcloud compute tpus tpu-vm list # Everywhere
@@ -140,15 +140,6 @@ gcloud compute tpus tpu-vm ssh tpu_user@${TPU_NAME} --zone=${TPU_ZONE} -- -L 858
 
 ```
 
-#### See the Juypter key
-
-```bash
-# Start using the environment (on the TPU machine)
-. ~/env-tpu/bin/activate
-
-jupyter notebook list
-```
-
 #### Get the git link going
 
 * Populate `known_hosts` with hash taken from [GitHub itself](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints) to avoid being asked to check
@@ -164,6 +155,16 @@ cd ${TPU_REPO}
 git config --global user.email "TPU-Machine@example.com"
 git config --global user.name "TPU-Machine"
 
+```
+
+
+#### See the Juypter key
+
+```bash
+# Start using the environment (on the TPU machine)
+. ~/env-tpu/bin/activate
+
+jupyter notebook list
 ```
 
 

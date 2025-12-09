@@ -58,24 +58,20 @@ sudo -u ${TPU_USER} bash << EOF
   #whoami
   #mkdir -p ~/.kaggle/
 
-  # This `curl|sh` is hateful : But it is the current solution...
+  # This `curl|sh` is hateful : Replaced above using 'snap'
   #curl -LsSf https://astral.sh/uv/install.sh | sh
   # The following puts 'uv' and 'uvx' in the PATH
   #source ./.local/bin/env  
 
-  #python3.12 -m venv ./env-tpu
   # https://docs.astral.sh/uv/guides/install-python/
-  #uv python install 3.12.12  # Or in 1 step...
-  uv venv --python 3.12 ./env-tpu
+  uv venv --python 3.12 ./env-tpu  # Auto-installs correct python version
 
   source ./env-tpu/bin/activate
-
-  #pip install -U pip
   uv pip freeze | sort > 0-pip-freeze.log  # NOTHING!
 
 
   # Install Jupyter and necessary packages
-  uv pip install jupyter jupyterlab jupytext ipywidgets
+  uv pip install jupyter jupyterlab jupytext "tqdm[notebook]" ipywidgets
   uv pip freeze | sort > 1-pip-freeze_with_jupyter.log
 
   uv pip install -U "jax[tpu]" -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
