@@ -50,18 +50,19 @@ os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "1.00"
 
 
 # +
-#from tunix.models.gemma3 import model as gemma_lib
-##from tunix.models.gemma3 import params_safetensors as params_safetensors_lib
-#from tunix.models.gemma3 import params_lib
-#from tunix.generate import tokenizer_adapter as tokenizer_lib
+from flax import nnx
 
-from tunix.generate import sampler as sampler_lib
 from tunix.generate import tokenizer_adapter as tokenizer_lib
-from tunix.models.gemma import model as gemma_lib
-from tunix.models.gemma import params as params_lib
+#from tunix.models.gemma import model as gemma_lib    # gemma2!
+#from tunix.models.gemma import params as params_lib  # gemma2!
+from tunix.models.gemma3 import model as gemma_lib
+from tunix.models.gemma3 import params as params_lib
+#from tunix.models.gemma3 import params_safetensors as params_safetensors_lib
+from tunix.generate import sampler as sampler_lib
 
 import optax
 from orbax import checkpoint as ocp
+import qwix  # For LoRA
 
 # +
 import functools, humanize
@@ -97,32 +98,11 @@ model_config = gemma_lib.ModelConfig.gemma3_1b()
 kaggle_ckpt_path = kagglehub.model_download(KAGGLE_MODEL_HANDLE)
 print(f"✓ Model downloaded to: {kaggle_ckpt_path}")
 
-params = params_lib.load_and_format_params(
-  #os.path.join(kaggle_ckpt_path, "gemma2-2b-it")
-  os.path.join(kaggle_ckpt_path, "gemma3-1b-it")
-)
-
-#gemma = gemma_lib.Transformer.from_params(params, version="2-2b-it")
-gemma = gemma_lib.Transformer.from_params(params, version="3-1b-it")
-
 # +
-checkpointer = ocp.StandardCheckpointer()
-_, state = nnx.split(gemma)
-checkpointer.save(os.path.join(INTERMEDIATE_CKPT_DIR, "state"), state)
-checkpointer.wait_until_finished()
+# ====== LoRA ======
+RANK = 64
+ALPHA = 64.0
 
-show_hbm_usage()    
-
-# +
-# Delete the intermediate model to save memory.
-del params
-del gemma
-del state
-gc.collect()
-
-show_hbm_usage()    
-
-# +
 # ====== Sharding ======
 MESH_COUNTS = (1, 1)  # Default
 if NUM_TPUS == 8:
@@ -130,12 +110,44 @@ if NUM_TPUS == 8:
   MESH_COUNTS = (1, 4)  # Spread across first 4 TPUs 
   #MESH_COUNTS = (1, 8) # Spread across all TPUs ?
   #MESH_COUNTS = (8, 1) # in https://www.kaggle.com/code/marculera/supervised-fine-tuning-full
-MESH = [MESH_COUNTS, ("fsdp", "tp")]
-
-# ====== LoRA ======
-RANK = 64
-ALPHA = 64.0
+mesh = jax.make_mesh(MESH_COUNTS, ("fsdp", "tp"))
+mesh
 # -
+
+model_nnx = params_lib.create_model_from_checkpoint(
+  os.path.join(kaggle_ckpt_path, "gemma3-1b-it"),
+  model_config, 
+  mesh = mesh,
+)
+show_hbm_usage()    
+
+# +
+#nnx.display(model_nnx)
+
+# +
+#params = params_lib.load_and_format_params(
+#  #os.path.join(kaggle_ckpt_path, "gemma2-2b-it")
+#  os.path.join(kaggle_ckpt_path, "gemma3-1b-it")
+#)
+
+# +
+#gemma = gemma_lib.Transformer.from_params(params, version="2-2b-it")
+#gemma = gemma_lib.Transformer.from_params(params, version="3-1b-it")
+
+# +
+#checkpointer = ocp.StandardCheckpointer()
+#_, state = nnx.split(gemma)
+#checkpointer.save(os.path.join(INTERMEDIATE_CKPT_DIR, "state"), state)
+#checkpointer.wait_until_finished()
+#show_hbm_usage()    
+# -
+
+if False:
+  # Explicitly delete the model - this does work!
+  del model_nnx
+  gc.collect()
+    
+  show_hbm_usage()    # 1.9Gb -> 1.7Mb
 
 # ### Model Loading and LoRA Application
 # These two functions work together to load a base model from a checkpoint and apply a LoRA (Low-Rank Adaptation) layer to it.
@@ -146,37 +158,38 @@ ALPHA = 64.0
 tokenizer = tokenizer_lib.Tokenizer(
   tokenizer_path=os.path.join(kaggle_ckpt_path, "tokenizer.model")
 )
-show_hbm_usage()    
+show_hbm_usage() # 1.7Mb (no storage used on TPU)
 
 
-def get_gemma_ref_model(ckpt_path, model_config):
-  mesh = jax.make_mesh(*MESH)
-  #model_config = gemma_lib.ModelConfig.gemma2_2b()
-  # Here, 'abs_' -> "Abstract" meaning structures without assigned memory (yet)
-  abs_gemma: nnx.Module = nnx.eval_shape( 
-    # computes the shape/dtype of a function without any FLOPs
-    lambda: gemma_lib.Transformer(model_config, rngs=nnx.Rngs(params=0))
-  )
-  abs_state = nnx.state(abs_gemma)
-  abs_state = jax.tree.map(
-    lambda a, s: jax.ShapeDtypeStruct(a.shape, jnp.bfloat16, sharding=s),
-    abs_state,
-    nnx.get_named_sharding(abs_state, mesh),
-  )
-  checkpointer = ocp.StandardCheckpointer()
-  restored_params = checkpointer.restore(ckpt_path, target=abs_state)
+# +
+#def get_gemma_ref_model(ckpt_path, model_config):
+#  mesh = jax.make_mesh(*MESH)
+#  #model_config = gemma_lib.ModelConfig.gemma2_2b()
+#  # Here, 'abs_' -> "Abstract" meaning structures without assigned memory (yet)
+#  abs_gemma: nnx.Module = nnx.eval_shape( 
+#    # computes the shape/dtype of a function without any FLOPs
+#    lambda: gemma_lib.Transformer(model_config, rngs=nnx.Rngs(params=0))
+#  )
+#  abs_state = nnx.state(abs_gemma)
+#  abs_state = jax.tree.map(
+#    lambda a, s: jax.ShapeDtypeStruct(a.shape, jnp.bfloat16, sharding=s),
+#    abs_state,
+#    nnx.get_named_sharding(abs_state, mesh),
+#  )
+#  checkpointer = ocp.StandardCheckpointer()
+#  restored_params = checkpointer.restore(ckpt_path, target=abs_state)
+#
+#  graph_def, _ = nnx.split(abs_gemma)
+#  gemma = nnx.merge(graph_def, restored_params)
+#  return gemma, mesh, model_config
 
-  graph_def, _ = nnx.split(abs_gemma)
-  gemma = nnx.merge(graph_def, restored_params)
-  return gemma, mesh, model_config
-
-
-ref_model, mesh, model_config = get_gemma_ref_model(
-  ckpt_path=os.path.join(INTERMEDIATE_CKPT_DIR, "state"),
-  model_config
-)
-show_hbm_usage()    
-
+# +
+#ref_model, mesh, model_config = get_gemma_ref_model(
+#  ckpt_path=os.path.join(INTERMEDIATE_CKPT_DIR, "state"),
+#  model_config
+#)
+#show_hbm_usage()    
+# -
 
 def get_lora_model(base_model, mesh, rank=RANK, alpha=ALPHA):
   lora_provider = qwix.LoraProvider(
@@ -190,7 +203,7 @@ def get_lora_model(base_model, mesh, rank=RANK, alpha=ALPHA):
 
   model_input = base_model.get_model_input()
   lora_model = qwix.apply_lora_to_model(
-      base_model, lora_provider, **model_input
+    base_model, lora_provider, **model_input
   )
 
   with mesh:
@@ -203,27 +216,29 @@ def get_lora_model(base_model, mesh, rank=RANK, alpha=ALPHA):
 
 
 
-lora_policy = get_lora_model(ref_model, mesh=mesh)
-nnx.display(lora_policy)
-show_hbm_usage()
+lora_policy = get_lora_model(model_nnx, mesh=mesh)
+#nnx.display(lora_policy)  This does appear to have LoRA adapters in it
+show_hbm_usage()  # Now 3.8 GiB (with 2 1B models loaded)
 
-
+# +
+# GOT TO HERE...
+# -
 
 
 
 
 
 def build_sampler(policy_model, tokenizer, model_config):
-    return sampler_lib.Sampler(
-        transformer=policy_model,
-        tokenizer=tokenizer,
-        cache_config=sampler_lib.CacheConfig(
-            cache_size=MAX_PROMPT_LENGTH + TOTAL_GENERATION_STEPS + 256,
-            num_layers=model_config.num_layers,
-            num_kv_heads=model_config.num_kv_heads,
-            head_dim=model_config.head_dim,
-        ),
-    )
+  return sampler_lib.Sampler(
+    transformer=policy_model,
+    tokenizer=tokenizer,
+    cache_config=sampler_lib.CacheConfig(
+      cache_size=MAX_PROMPT_LENGTH + TOTAL_GENERATION_STEPS + 256,
+      num_layers=model_config.num_layers,
+      num_kv_heads=model_config.num_kv_heads,
+      head_dim=model_config.head_dim,
+    ),
+  )
 
 
 
