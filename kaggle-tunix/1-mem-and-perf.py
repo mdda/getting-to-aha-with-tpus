@@ -61,10 +61,10 @@ import qwix  # For LoRA
 
 # Random seeds
 SEED = 42
-rng = np.random.default_rng(SEED)
 jax_key = jax.random.PRNGKey(SEED)
-np.random.seed(SEED)
-random.seed(SEED)
+#rng = np.random.default_rng(SEED)
+#np.random.seed(SEED)
+#random.seed(SEED)
 
 # +
 import functools, humanize
@@ -117,7 +117,7 @@ REASONING_START, REASONING_END = "<reasoning>", "</reasoning>"
 ANSWER_START, ANSWER_END = "<answer>", "</answer>"
 
 MAX_PROMPT_LENGTH = 256
-TOTAL_GENERATION_STEPS = 128
+MAX_GENERATION_STEPS = 128
 
 SYSTEM_PROMPT = f"""
 You always reason carefully before answering.
@@ -152,7 +152,7 @@ question_sample = "What is the highest prime below 42?"
 tok_test = tokenizer.tokenize(
   TEMPLATE.format(system_prompt=SYSTEM_PROMPT, question=question_sample), 
   add_eos=False)  # Returns a np.array of np.int32
-tok_test.shape
+tok_test.shape  # question_sample :: 120 toks
 
 # ## Build the model
 
@@ -168,7 +168,7 @@ if NUM_TPUS == 8:
   MESH_COUNTS = (1, 4)  # Spread across first 4 TPUs 
   #MESH_COUNTS = (1, 8) # Spread across all TPUs ?
   #MESH_COUNTS = (8, 1) # in https://www.kaggle.com/code/marculera/supervised-fine-tuning-full
-mesh = jax.make_mesh(MESH_COUNTS, ("fsdp", "tp"))
+mesh = jax.make_mesh(MESH_COUNTS, ("fsdp", "tp"), axis_types=(jax.sharding.AxisType.Auto,)*2) # or AxisType.Explicit
 mesh
 # -
 
@@ -286,14 +286,14 @@ model_rollout = model_nnx
 
 
 
-def build_sampler(rollout_model, tokenizer, model_config):
+def build_sampler(rollout_model, tokenizer, model_config):  # CACHE_SIZE based on MAX_GENERATION_STEPS
   """NB: Need to pass in the actual model to be used"""
   return sampler_lib.Sampler(
     transformer=rollout_model,
     tokenizer=tokenizer,
     cache_config=sampler_lib.CacheConfig(
-      #cache_size  = MAX_PROMPT_LENGTH + TOTAL_GENERATION_STEPS + 256,
-      cache_size  = MAX_PROMPT_LENGTH + TOTAL_GENERATION_STEPS + 32,
+      #cache_size  = MAX_PROMPT_LENGTH + MAX_GENERATION_STEPS + 256,
+      cache_size  = MAX_PROMPT_LENGTH + MAX_GENERATION_STEPS + 32,
       num_layers  = model_config.num_layers,
       num_kv_heads= model_config.num_kv_heads,
       head_dim    = model_config.head_dim,
@@ -301,8 +301,7 @@ def build_sampler(rollout_model, tokenizer, model_config):
   )
 
 
-
-def generate_answers(question_arr, sampler, steps_max=TOTAL_GENERATION_STEPS, 
+def generate_answers(question_arr, sampler, steps_max=MAX_GENERATION_STEPS, 
                      temperature=0.7, top_k=50, top_p=0.95, seed=None):
   batch = [
     TEMPLATE.format(system_prompt=SYSTEM_PROMPT, question=q)
@@ -310,26 +309,59 @@ def generate_answers(question_arr, sampler, steps_max=TOTAL_GENERATION_STEPS,
   ]
   out = sampler(
     input_strings=batch,
+    temperature=temperature, top_k=top_k, top_p=top_p,
     max_generation_steps=steps_max,
-    temperature=temperature,
-    top_k=top_k,
-    top_p=top_p,
-    echo=False,
-    seed=seed,
     eos_tokens=EOS_TOKENS,
+    seed=seed, echo=False,
   )
   return out.text
 
 
+# Building the sampler causes a recompilation ...
+t0=time.time()
+sampler_rollout = build_sampler(model_rollout, tokenizer, model_config)
+print(f"{(time.time()-t0):.2f} seconds to build sampler")
+
 # +
 batch_size = 1
+question_long = "List all the prime numbers less than 1 million"
 
-sampler_rollout = build_sampler(model_rollout, tokenizer, model_config)
-for steps_max in [128,]:
-  for trial in [0,1,2,3]:
+steps_arr = [64,128,150,200,250,256]
+res_arr = []
+
+for steps_max in steps_arr:
+  print(f"{steps_max=}")
+  for trial in [0,1]:  # trial==0 may include jit delays : Can throw that result away
     t0=time.time()
-    ans_arr = generate_answers( [question_sample]*batch_size, sampler_rollout, steps_max=steps_max)
-    # Look at ans_arr ...
+    # Each new value of steps_max incurs a jit compilation delay... (but they do get cached!)
+    #   Also, it seems the cache size generation gets rejitted longer each time (but remains fixed at high-water?)
+    ans_arr = generate_answers( [question_long]*batch_size, sampler_rollout, steps_max=steps_max)
+    #  ans_arr[0] = 'Prime number is a positive integer greater than 1 that  ...' (gets truncated)
     elapsed = time.time()-t0
     hbm = hbm_usage(display=False)
-    print(f"{trial=}, {steps_max=}, {batch_size=}, {elapsed:.3f}, {hbm=}")  
+    print(f"  {trial=}, {batch_size=:3d}, {elapsed:8.3f}sec, {hbm=}")  
+    if trial>0:
+      res_arr.append( dict(trial=trial, steps_max=steps_max, elapsed=elapsed, hbm0=hbm[0],) )
+
+# +
+#ans_arr[0]
+# -
+
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+res_df = pd.DataFrame(res_arr)
+
+
+def regplot(y="elapsed"):
+  fig, ax = plt.subplots(figsize=(12,4))
+  sns.regplot(data=res_df, x="steps_max", y=y, ax=ax, truncate=False )
+  ax.set(xlim=(0, None), ylim=(0, None))  # Choose defaults for max
+  #ax.set(xlim=(0, None))  # Choose defaults for max
+  plt.show()
+regplot(y="elapsed")
+
+regplot(y="hbm0")
+
+
