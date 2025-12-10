@@ -90,8 +90,10 @@ sudo -u ${TPU_USER} bash << EOF
 
   # https://docs.cloud.google.com/compute/docs/instances/startup-scripts/linux#accessing-metadata
   #   WORKS confirmed : this does get passed to metadata store for downloading to 0-metadata.txt
-  METADATA_FOO_VALUE=\$(curl http://metadata.google.internal/computeMetadata/v1/instance/attributes/foo -H "Metadata-Flavor: Google")
-  echo \${METADATA_FOO_VALUE} > 0-metadata.txt
+  #METADATA_FOO_VALUE=\$(curl http://metadata.google.internal/computeMetadata/v1/instance/attributes/foo -H "Metadata-Flavor: Google")
+  #echo \${METADATA_FOO_VALUE} > 0-metadata.txt
+
+  JUPYTER_TOKEN=\$(curl http://metadata.google.internal/computeMetadata/v1/instance/attributes/JUPYTER_TOKEN -H "Metadata-Flavor: Google")
 
   # Interesting:
   # curl http://metadata.google.internal/computeMetadata/v1/instance/ -H "Metadata-Flavor: Google"
@@ -101,7 +103,7 @@ sudo -u ${TPU_USER} bash << EOF
   # Start JupyterLab server in the background as the user
   #   Use --no-browser and --ip=0.0.0.0 to make it accessible remotely
   #   Use nohup to keep it running after the script finishes
-  nohup jupyter lab --no-browser --ip=0.0.0.0 --port=${JUPYTER_PORT} --allow-root &
+  nohup jupyter lab --no-browser --ip=0.0.0.0 --port=${JUPYTER_PORT} --ServerApp.token=\${JUPYTER_TOKEN} --allow-root &
 
 EOF
 

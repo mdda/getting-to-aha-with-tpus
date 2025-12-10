@@ -1,4 +1,11 @@
-## kaggle-tunix notes
+# `kaggle-tunix` notes
+
+Documenting the process of getting a 'useable' GCP `TPUv5e-1` (or `-8`) running cleanly - 
+which is important, since the suggested *modus-operandi* seems to be to have 
+these instances being 'stateless' (i.e. attaching a pre-configured disk doesn't seem to be step #1 in the instructions).
+
+
+## On local machine
 
 ### GCP set-up
 
@@ -79,7 +86,7 @@ gcloud compute tpus tpu-vm accelerator-types describe ${TPU_TYPE} --zone=${TPU_Z
 ### Create the TPU
 
 ```bash
-TPU_SECRETS="foo=SDFSDF,bar=EWEUREU"
+TPU_SECRETS="foo=barbar,JUPYTER_TOKEN=security-via-GCP-auth"
 gcloud compute tpus tpu-vm create ${TPU_NAME} \
   --zone=${TPU_ZONE} \
   --accelerator-type=${TPU_TYPE} \
@@ -140,6 +147,8 @@ gcloud compute tpus tpu-vm ssh tpu_user@${TPU_NAME} --zone=${TPU_ZONE} -- -L 858
 
 ```
 
+## On the TPU host machine...
+
 #### Get the git link going
 
 * Populate `known_hosts` with hash taken from [GitHub itself](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints) to avoid being asked to check
@@ -170,16 +179,18 @@ jupyter notebook list
 
 
 
-### Notes during development
+## Notes during development
 
 
-#### Examine Startup script output
+### On the TPU machine
+
+Examine Startup script output:
 
 ```bash
 sudo journalctl -u google-startup-scripts.service
 ```
 
-#### On the machine = Notes
+General machine operations:
 
 ```bash
 tpu_user@t1v-n-dbe8fd36-w-0:~$ python --version
@@ -208,28 +219,28 @@ df -h
 #tmpfs            38G  4.0K   38G   1% /run/user/2001
 ```
 
----
+## On local machine
 
-### Mount drive locally?
+### Mount drive locally
 
 ```bash
 sshfs ${GCP_ADDR}:. ./gcp_base -o reconnect -o follow_symlinks
 
 ```
 
-#### Unmount drive locally?
+### Unmount drive locally
 
 ```bash
 fusermount -u ./gcp_base
 ```
 
 
-## Attach storage?
+### Attachable storage
 
 * [attach-durable-block-storage](https://docs.cloud.google.com/tpu/docs/attach-durable-block-storage)
 
 
-## Other Notes
+### Other Notes
 
 ```bash
 gcloud compute tpus tpu-vm accelerator-types describe v5litepod-8 --zone=asia-east1-c
@@ -239,7 +250,6 @@ gcloud compute tpus tpu-vm accelerator-types describe v5litepod-8 --zone=asia-ea
 #name: projects/rdai-tpu-mdda/locations/asia-east1-c/acceleratorTypes/v5litepod-8
 #type: v5litepod-8
 ```
-
 
 ;#### Get the IP address:
 ;#
