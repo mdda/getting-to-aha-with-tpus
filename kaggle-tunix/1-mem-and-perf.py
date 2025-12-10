@@ -15,22 +15,16 @@
 # ---
 
 # +
-import os, gc
+import os, time
+import gc  # Memory clean-up
 
 import jax
 import jax.numpy as jnp
 
 NUM_TPUS = len(jax.devices())
 
-INTERMEDIATE_CKPT_DIR = "~/content/intermediate_ckpt/"
+#INTERMEDIATE_CKPT_DIR = "~/content/intermediate_ckpt/"
 CKPT_DIR = "~/content/ckpts/"
-# -
-
-from dotenv import load_dotenv
-if not load_dotenv(override=True):
-  load_dotenv('./tpu_dotenv/dotenv', override=True)
-os.environ['KAGGLE_USERNAME'], os.environ['KAGGLE_KEY'][-4:], 
-
 
 # +
 # See : https://www.kaggle.com/code/marculera/supervised-fine-tuning-full
@@ -63,21 +57,40 @@ from tunix.generate import sampler as sampler_lib
 import optax
 from orbax import checkpoint as ocp
 import qwix  # For LoRA
+# -
+
+# Random seeds
+SEED = 42
+rng = np.random.default_rng(SEED)
+jax_key = jax.random.PRNGKey(SEED)
+np.random.seed(SEED)
+random.seed(SEED)
 
 # +
 import functools, humanize
-def show_hbm_usage():
+def hbm_usage(display=True):
   """Displays memory usage per device."""
   fmt_size = functools.partial(humanize.naturalsize, binary=True)
-
+  mem_arr = []
   for d in jax.local_devices():
     stats = d.memory_stats()
     used = stats["bytes_in_use"]
     limit = stats["bytes_limit"]
-    print(f"Using {fmt_size(used)} / {fmt_size(limit)} ({used/limit:%}) on {d}")
+    if display:
+      print(f"Using {fmt_size(used)} / {fmt_size(limit)} ({used/limit:%}) on {d}")
+    mem_arr.append(used)
+  return mem_arr
       
-show_hbm_usage()    
+hbm_usage()    
 # -
+
+# ## Download the Model
+
+from dotenv import load_dotenv
+if not load_dotenv(override=True):
+  load_dotenv('./tpu_dotenv/dotenv', override=True)
+os.environ['KAGGLE_USERNAME'], os.environ['KAGGLE_KEY'][-4:], 
+
 
 from tqdm import tqdm_notebook as tqdm
 import kagglehub
@@ -97,6 +110,51 @@ model_config = gemma_lib.ModelConfig.gemma3_1b()
 
 kaggle_ckpt_path = kagglehub.model_download(KAGGLE_MODEL_HANDLE)
 print(f"✓ Model downloaded to: {kaggle_ckpt_path}")
+
+# +
+# Special tags, system prompt and template
+REASONING_START, REASONING_END = "<reasoning>", "</reasoning>"
+ANSWER_START, ANSWER_END = "<answer>", "</answer>"
+
+MAX_PROMPT_LENGTH = 256
+TOTAL_GENERATION_STEPS = 128
+
+SYSTEM_PROMPT = f"""
+You always reason carefully before answering.
+
+For each question:
+- First, think through the problem step by step.
+- Put all of your step-by-step reasoning strictly between {REASONING_START} and {REASONING_END}.
+- If the result of reasoning is a number, then the final answer should be only that number.
+- Put the final answer strictly between {ANSWER_START} and {ANSWER_END}.
+
+You MUST include both blocks, in this order.
+""".strip()
+
+TEMPLATE = f"""
+<start_of_turn>user
+{{system_prompt}}
+
+{{question}}<end_of_turn>
+<start_of_turn>model
+{REASONING_START}
+""".strip()  # NB: {REASONING_START} added to TEMPLATE for reasoning model outputs...
+# -
+
+tokenizer = tokenizer_lib.Tokenizer(  # sentencepiece is default...
+  tokenizer_path=os.path.join(kaggle_ckpt_path, "tokenizer.model")
+)
+EOS_TOKENS = [tokenizer.eos_id()] # Use tokenizer EOS id
+print(f"{EOS_TOKENS=}")
+hbm_usage() # 1.7Mb (no storage used on TPU)
+
+question_sample = "What is the highest prime below 42?"
+tok_test = tokenizer.tokenize(
+  TEMPLATE.format(system_prompt=SYSTEM_PROMPT, question=question_sample), 
+  add_eos=False)  # Returns a np.array of np.int32
+tok_test.shape
+
+# ## Build the model
 
 # +
 # ====== LoRA ======
@@ -119,7 +177,7 @@ model_nnx = params_lib.create_model_from_checkpoint(
   model_config, 
   mesh = mesh,
 )
-show_hbm_usage()    
+hbm_usage()    
 
 # +
 #nnx.display(model_nnx)
@@ -147,19 +205,15 @@ if False:
   del model_nnx
   gc.collect()
     
-  show_hbm_usage()    # 1.9Gb -> 1.7Mb
+  hbm_usage()    # 1.9Gb -> 1.7Mb
+
+
 
 # ### Model Loading and LoRA Application
 # These two functions work together to load a base model from a checkpoint and apply a LoRA (Low-Rank Adaptation) layer to it.
 #
 # * `get_ref_model`: Loads the complete Gemma model from a specified checkpoint path. It uses JAX sharding to distribute the model parameters across multiple devices.
 # * `get_lora_model`: Takes the base model and applies LoRA layers to it. It uses a LoraProvider to select specific layers (like attention and MLP layers) to be adapted. The resulting LoRA-infused model is then sharded and updated to ensure it's ready for distributed training.
-
-tokenizer = tokenizer_lib.Tokenizer(
-  tokenizer_path=os.path.join(kaggle_ckpt_path, "tokenizer.model")
-)
-show_hbm_usage() # 1.7Mb (no storage used on TPU)
-
 
 # +
 #def get_gemma_ref_model(ckpt_path, model_config):
@@ -188,10 +242,14 @@ show_hbm_usage() # 1.7Mb (no storage used on TPU)
 #  ckpt_path=os.path.join(INTERMEDIATE_CKPT_DIR, "state"),
 #  model_config
 #)
-#show_hbm_usage()    
+#hbm_usage()    
 # -
 
 def get_lora_model(base_model, mesh, rank=RANK, alpha=ALPHA):
+  """
+  This apparently makes a separate copy of the model
+  rather than using the base_model weights by-reference
+  """
   lora_provider = qwix.LoraProvider(
     module_path=(
       ".*q_einsum|.*kv_einsum|.*gate_proj|.*down_proj|.*up_proj|"
@@ -215,10 +273,12 @@ def get_lora_model(base_model, mesh, rank=RANK, alpha=ALPHA):
   return lora_model
 
 
+if False:
+  model_rollout = get_lora_model(model_nnx, mesh=mesh)
+  #nnx.display(lora_policy)  This does appear to have LoRA adapters in it
+  hbm_usage()  # Now 3.8 GiB (with 2 1B models loaded)
 
-lora_policy = get_lora_model(model_nnx, mesh=mesh)
-#nnx.display(lora_policy)  This does appear to have LoRA adapters in it
-show_hbm_usage()  # Now 3.8 GiB (with 2 1B models loaded)
+model_rollout = model_nnx
 
 # +
 # GOT TO HERE...
@@ -226,42 +286,50 @@ show_hbm_usage()  # Now 3.8 GiB (with 2 1B models loaded)
 
 
 
-
-
-def build_sampler(policy_model, tokenizer, model_config):
+def build_sampler(rollout_model, tokenizer, model_config):
+  """NB: Need to pass in the actual model to be used"""
   return sampler_lib.Sampler(
-    transformer=policy_model,
+    transformer=rollout_model,
     tokenizer=tokenizer,
     cache_config=sampler_lib.CacheConfig(
-      cache_size=MAX_PROMPT_LENGTH + TOTAL_GENERATION_STEPS + 256,
-      num_layers=model_config.num_layers,
-      num_kv_heads=model_config.num_kv_heads,
-      head_dim=model_config.head_dim,
+      #cache_size  = MAX_PROMPT_LENGTH + TOTAL_GENERATION_STEPS + 256,
+      cache_size  = MAX_PROMPT_LENGTH + TOTAL_GENERATION_STEPS + 32,
+      num_layers  = model_config.num_layers,
+      num_kv_heads= model_config.num_kv_heads,
+      head_dim    = model_config.head_dim,
     ),
   )
 
 
 
-def generate_answers(questions, sampler, temperature=0.7, top_k=50, top_p=0.95, seed=None):
-    if isinstance(questions, str):
-        batch = [
-            TEMPLATE.format(system_prompt=SYSTEM_PROMPT, question=questions),
-        ]
-    else:
-        batch = [
-            TEMPLATE.format(system_prompt=SYSTEM_PROMPT, question=q)
-            for q in questions
-        ]
-    out = sampler(
-        input_strings=batch,
-        max_generation_steps=TOTAL_GENERATION_STEPS,
-        temperature=temperature,
-        top_k=top_k,
-        top_p=top_p,
-        echo=False,
-        seed=seed,
-        eos_tokens=EOS_TOKENS,
-    )
-    texts = out.text
-    return texts[0] if isinstance(questions, str) else texts
+def generate_answers(question_arr, sampler, steps_max=TOTAL_GENERATION_STEPS, 
+                     temperature=0.7, top_k=50, top_p=0.95, seed=None):
+  batch = [
+    TEMPLATE.format(system_prompt=SYSTEM_PROMPT, question=q)
+    for q in question_arr
+  ]
+  out = sampler(
+    input_strings=batch,
+    max_generation_steps=steps_max,
+    temperature=temperature,
+    top_k=top_k,
+    top_p=top_p,
+    echo=False,
+    seed=seed,
+    eos_tokens=EOS_TOKENS,
+  )
+  return out.text
 
+
+# +
+batch_size = 1
+
+sampler_rollout = build_sampler(model_rollout, tokenizer, model_config)
+for steps_max in [128,]:
+  for trial in [0,1,2,3]:
+    t0=time.time()
+    ans_arr = generate_answers( [question_sample]*batch_size, sampler_rollout, steps_max=steps_max)
+    # Look at ans_arr ...
+    elapsed = time.time()-t0
+    hbm = hbm_usage(display=False)
+    print(f"{trial=}, {steps_max=}, {batch_size=}, {elapsed:.3f}, {hbm=}")  
