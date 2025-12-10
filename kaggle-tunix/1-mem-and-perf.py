@@ -61,7 +61,8 @@ import qwix  # For LoRA
 
 # Random seeds
 SEED = 42
-jax_key = jax.random.PRNGKey(SEED)
+#jax_key = jax.random.PRNGKey(SEED)
+nnx_rng = nnx.Rngs(SEED)
 #rng = np.random.default_rng(SEED)
 #np.random.seed(SEED)
 #random.seed(SEED)
@@ -95,7 +96,7 @@ os.environ['KAGGLE_USERNAME'], os.environ['KAGGLE_KEY'][-4:],
 #from tqdm import tqdm_notebook as tqdm
 import tqdm
 import tqdm.notebook
-tqdm.tqdm = tqdm.notebook.tqdm  # Monkey-patch before Kagglehub load
+tqdm.tqdm = tqdm.notebook.tqdm  # Monkey-patch before Kagglehub load (Does not seem effective...)
 
 import kagglehub
 #kagglehub.login()                # user interaction not required - have set os.environ using dotenv()
@@ -120,8 +121,8 @@ print(f"✓ Model downloaded to: {kaggle_ckpt_path}")
 REASONING_START, REASONING_END = "<reasoning>", "</reasoning>"
 ANSWER_START, ANSWER_END = "<answer>", "</answer>"
 
-MAX_PROMPT_LENGTH = 256
-MAX_GENERATION_STEPS = 128
+MAX_PROMPT_LENGTH = 256     # Just a guess
+MAX_GENERATION_STEPS = 1024 # Stated in the Kaggle competition notes
 
 SYSTEM_PROMPT = f"""
 You always reason carefully before answering.
@@ -150,7 +151,7 @@ tokenizer = tokenizer_lib.Tokenizer(  # sentencepiece is default...
 )
 EOS_TOKENS = [tokenizer.eos_id()] # Use tokenizer EOS id
 print(f"{EOS_TOKENS=}")
-hbm_usage() # 1.7Mb (no storage used on TPU)
+hbm_usage() # 91k (no storage used on TPU)
 
 question_sample = "What is the highest prime below 42?"
 tok_test = tokenizer.tokenize(
@@ -181,7 +182,7 @@ model_nnx = params_lib.create_model_from_checkpoint(
   model_config, 
   mesh = mesh,
 )
-hbm_usage()    
+hbm_usage() # [2,000,511,488]
 
 # +
 #nnx.display(model_nnx)
@@ -202,14 +203,16 @@ hbm_usage()
 #checkpointer.save(os.path.join(INTERMEDIATE_CKPT_DIR, "state"), state)
 #checkpointer.wait_until_finished()
 #show_hbm_usage()    
-# -
 
-if False:
-  # Explicitly delete the model - this does work!
-  del model_nnx
-  gc.collect()
-    
-  hbm_usage()    # 1.9Gb -> 1.7Mb
+# +
+# Explicitly delete the model - this does work!
+#del model_nnx
+#del model_rollout
+#del sampler_rollout
+
+gc.collect()   #  This is apparently required to get rid of TPU memory allocated to 'del' variables
+hbm_usage()    # 1.9Gb -> 1.7Mb
+# -
 
 
 
@@ -259,13 +262,12 @@ def get_lora_model(base_model, mesh, rank=RANK, alpha=ALPHA):
       ".*q_einsum|.*kv_einsum|.*gate_proj|.*down_proj|.*up_proj|"
       ".*attn_vec_einsum"
     ),
-    rank=rank,
-    alpha=alpha,
+    rank=rank, alpha=alpha,
   )
 
   model_input = base_model.get_model_input()
   lora_model = qwix.apply_lora_to_model(
-    base_model, lora_provider, **model_input
+    base_model, lora_provider, **model_input, rngs=nnx_rng,
   )
 
   with mesh:
@@ -277,12 +279,15 @@ def get_lora_model(base_model, mesh, rank=RANK, alpha=ALPHA):
   return lora_model
 
 
-if False:
+model_rollout = model_nnx
+if True:
   model_rollout = get_lora_model(model_nnx, mesh=mesh)
   #nnx.display(lora_policy)  This does appear to have LoRA adapters in it
   hbm_usage()  # Now 3.8 GiB (with 2 1B models loaded)
 
-model_rollout = model_nnx
+#del model_nnx
+#gc.collect()
+hbm_usage()
 
 # +
 # GOT TO HERE...
@@ -290,6 +295,15 @@ model_rollout = model_nnx
 
 
 
+# +
+def kv_cache_estimate(batch_size, steps_max=(MAX_PROMPT_LENGTH + MAX_GENERATION_STEPS + 32)):
+  return (
+    batch_size * steps_max *  # But actual allocation is not dependent on steps_max
+    model_config.num_layers * model_config.num_kv_heads * model_config.head_dim
+    * 2 # K+V
+    * 2 # sizeof(bfloat16
+  )
+                      
 def build_sampler(rollout_model, tokenizer, model_config):  # CACHE_SIZE based on MAX_GENERATION_STEPS
   """NB: Need to pass in the actual model to be used"""
   return sampler_lib.Sampler(
@@ -305,6 +319,8 @@ def build_sampler(rollout_model, tokenizer, model_config):  # CACHE_SIZE based o
   )
 
 
+# -
+
 def generate_answers(question_arr, sampler, steps_max=MAX_GENERATION_STEPS, 
                      temperature=0.7, top_k=50, top_p=0.95, seed=None):
   batch = [
@@ -318,7 +334,10 @@ def generate_answers(question_arr, sampler, steps_max=MAX_GENERATION_STEPS,
     eos_tokens=EOS_TOKENS,
     seed=seed, echo=False,
   )
-  return out.text
+  text_arr = out.text[:]  # Copy
+  del out # Release structure
+  gc.collect() #?
+  return text_arr
 
 
 # Building the sampler causes a recompilation ...
@@ -328,55 +347,78 @@ print(f"{(time.time()-t0):.2f} seconds to build sampler")
 
 # +
 question_long = "List all the prime numbers less than 1 million"
-batch_size, steps_max = 1, 256  # Defaults
+batch_size, steps_max = 1, 1024  # Defaults
 
-steps_arr = [5, 64,128,150,200,250,256, 512, 800, 1024]
-batch_arr = [1, 8, 16, 64, 128, 200, 256, 400, 512, ]
+#steps_arr = [5, 64,128,150,200,250,256, 512, 800, 1024]
+batch_arr = [1, 8, 16, 64, 128, 200, ]  # Ok for raw model (failed after)
+batch_arr = [1, 8, 16, 64, 128, ]  # Ok for LoRA model (failed after)
+batch_arr = [16, 32, 60, 64, 68, 100, 124, 128, 132]  # Detail Ok for LoRA model (failed after)
+#batch_arr = [256, ]  # Fails with RESOURCE_EXHAUSTED
+#batch_arr = [128, ]  # 
 res_arr = []
 
-#for batch_size in batch_arr:
-for steps_max in steps_arr:
+for batch_size in batch_arr:
+#for steps_max in steps_arr:
   print(f"{steps_max=} {batch_size=}")
   for trial in [0,1,2]:  # trial==0 may include jit delays : Can throw that result away
     t0=time.time()
+    kv_est = kv_cache_estimate(batch_size)  #  This will be allocated+deallocated - but we need to add...
     # Each new value of steps_max incurs a jit compilation delay... (but they do get cached!)
     #   Also, it seems the cache size generation gets rejitted longer each time (but remains fixed at high-water?)
     ans_arr = generate_answers( [question_long]*batch_size, sampler_rollout, steps_max=steps_max)
     #  ans_arr[0] = 'Prime number is a positive integer greater than 1 that  ...' (gets truncated)
     elapsed = time.time()-t0
-    hbm = hbm_usage(display=False)
+    hbm = [ m+kv_est for m in hbm_usage(display=False)]
     print(f"  {trial=}, {batch_size=:3d}, {elapsed:8.3f}sec, {hbm=}")  
     if trial>0:
       res_arr.append( dict(trial=trial, batch_size=batch_size, steps_max=steps_max, 
                            elapsed=elapsed, hbm0=hbm[0],) )
-
-# +
-#ans_arr[0]
 # -
 
+#ans_arr[0]
+#nnx.display(sampler_rollout)
+hbm_usage()
+
 import pickle
-with open('my_data.pkl', 'wb') as f:
+#with open('steps-vary_bs1.pkl', 'wb') as f:
+with open('bs-detail-128_steps1024_lora.pkl', 'wb') as f:
   pickle.dump(res_arr, f)
 
+# +
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+sns.set_style("darkgrid")
+
 # +
-  
 res_df = pd.DataFrame(res_arr)
+
+res_df['ms_per_token'] = res_df['elapsed']*1000. / (res_df['steps_max']*res_df['batch_size'])
 
 
 # -
 
-def regplot(y="elapsed"):
+def regplot(x="steps_max", y="elapsed", include_origin=True):
   fig, ax = plt.subplots(figsize=(12,4))
-  sns.regplot(data=res_df, x="steps_max", y=y, ax=ax, truncate=False )
-  ax.set(xlim=(0, None), ylim=(0, None))  # Choose defaults for max
-  #ax.set(xlim=(0, None))  # Choose defaults for max
+  sns.regplot(data=res_df, x=x, y=y, ax=ax, truncate=False )
+  if include_origin:
+    ax.set(xlim=(0, None), ylim=(0, None))  # Choose defaults for max
   plt.show()
-regplot(y="elapsed")
+#regplot(y="elapsed")  # When steps varied
+regplot(x="batch_size", y="ms_per_token")
 
-regplot(y="hbm0")
+#regplot(x="steps_max", y="hbm0")
+regplot(x="batch_size", y="hbm0")
+
+# +
+#res_df # regular model
+
+# +
+#res_df # LoRA model
+
+# +
+#res_df # LoRA model detail
+# -
 
 
