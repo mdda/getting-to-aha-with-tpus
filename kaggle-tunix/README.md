@@ -132,6 +132,8 @@ gcloud compute tpus tpu-vm scp --zone=${TPU_ZONE} ${TPU_KEY_PATH}* tpu_user@${TP
 
 TPU_DOTENV="./tpu_dotenv/dotenv"
 gcloud compute tpus tpu-vm scp --zone=${TPU_ZONE} ${TPU_DOTENV} tpu_user@${TPU_NAME}:~/.env
+
+./bell_tpu
 ```
 
 

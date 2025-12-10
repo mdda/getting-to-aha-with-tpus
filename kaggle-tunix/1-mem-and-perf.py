@@ -92,7 +92,11 @@ if not load_dotenv(override=True):
 os.environ['KAGGLE_USERNAME'], os.environ['KAGGLE_KEY'][-4:], 
 
 
-from tqdm import tqdm_notebook as tqdm
+#from tqdm import tqdm_notebook as tqdm
+import tqdm
+import tqdm.notebook
+tqdm.tqdm = tqdm.notebook.tqdm  # Monkey-patch before Kagglehub load
+
 import kagglehub
 #kagglehub.login()                # user interaction not required - have set os.environ using dotenv()
 
@@ -323,15 +327,17 @@ sampler_rollout = build_sampler(model_rollout, tokenizer, model_config)
 print(f"{(time.time()-t0):.2f} seconds to build sampler")
 
 # +
-batch_size = 1
 question_long = "List all the prime numbers less than 1 million"
+batch_size, steps_max = 1, 256  # Defaults
 
-steps_arr = [64,128,150,200,250,256]
+steps_arr = [5, 64,128,150,200,250,256, 512, 800, 1024]
+batch_arr = [1, 8, 16, 64, 128, 200, 256, 400, 512, ]
 res_arr = []
 
+#for batch_size in batch_arr:
 for steps_max in steps_arr:
-  print(f"{steps_max=}")
-  for trial in [0,1]:  # trial==0 may include jit delays : Can throw that result away
+  print(f"{steps_max=} {batch_size=}")
+  for trial in [0,1,2]:  # trial==0 may include jit delays : Can throw that result away
     t0=time.time()
     # Each new value of steps_max incurs a jit compilation delay... (but they do get cached!)
     #   Also, it seems the cache size generation gets rejitted longer each time (but remains fixed at high-water?)
@@ -341,18 +347,27 @@ for steps_max in steps_arr:
     hbm = hbm_usage(display=False)
     print(f"  {trial=}, {batch_size=:3d}, {elapsed:8.3f}sec, {hbm=}")  
     if trial>0:
-      res_arr.append( dict(trial=trial, steps_max=steps_max, elapsed=elapsed, hbm0=hbm[0],) )
+      res_arr.append( dict(trial=trial, batch_size=batch_size, steps_max=steps_max, 
+                           elapsed=elapsed, hbm0=hbm[0],) )
 
 # +
 #ans_arr[0]
 # -
 
+import pickle
+with open('my_data.pkl', 'wb') as f:
+  pickle.dump(res_arr, f)
+
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+# +
+  
 res_df = pd.DataFrame(res_arr)
 
+
+# -
 
 def regplot(y="elapsed"):
   fig, ax = plt.subplots(figsize=(12,4))

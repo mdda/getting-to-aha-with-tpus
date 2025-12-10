@@ -87,6 +87,9 @@ sudo -u ${TPU_USER} bash << EOF
   uv pip freeze | sort > 4-pip-freeze_with_tunix-qwix.log
   # This one also gives us kagglehub and dotenv!
 
+  uv pip install seaborn pandas pickle
+  uv pip freeze | sort > 5-pip-freeze_with_misc.log
+
 
   # https://docs.cloud.google.com/compute/docs/instances/startup-scripts/linux#accessing-metadata
   #   WORKS confirmed : this does get passed to metadata store for downloading to 0-metadata.txt
