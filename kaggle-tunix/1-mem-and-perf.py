@@ -188,23 +188,6 @@ hbm_usage() # [2,000,511,488]
 #nnx.display(model_nnx)
 
 # +
-#params = params_lib.load_and_format_params(
-#  #os.path.join(kaggle_ckpt_path, "gemma2-2b-it")
-#  os.path.join(kaggle_ckpt_path, "gemma3-1b-it")
-#)
-
-# +
-#gemma = gemma_lib.Transformer.from_params(params, version="2-2b-it")
-#gemma = gemma_lib.Transformer.from_params(params, version="3-1b-it")
-
-# +
-#checkpointer = ocp.StandardCheckpointer()
-#_, state = nnx.split(gemma)
-#checkpointer.save(os.path.join(INTERMEDIATE_CKPT_DIR, "state"), state)
-#checkpointer.wait_until_finished()
-#show_hbm_usage()    
-
-# +
 # Explicitly delete the model - this does work!
 #del model_nnx
 #del model_rollout
@@ -222,37 +205,7 @@ hbm_usage()    # 1.9Gb -> 1.7Mb
 # * `get_ref_model`: Loads the complete Gemma model from a specified checkpoint path. It uses JAX sharding to distribute the model parameters across multiple devices.
 # * `get_lora_model`: Takes the base model and applies LoRA layers to it. It uses a LoraProvider to select specific layers (like attention and MLP layers) to be adapted. The resulting LoRA-infused model is then sharded and updated to ensure it's ready for distributed training.
 
-# +
-#def get_gemma_ref_model(ckpt_path, model_config):
-#  mesh = jax.make_mesh(*MESH)
-#  #model_config = gemma_lib.ModelConfig.gemma2_2b()
-#  # Here, 'abs_' -> "Abstract" meaning structures without assigned memory (yet)
-#  abs_gemma: nnx.Module = nnx.eval_shape( 
-#    # computes the shape/dtype of a function without any FLOPs
-#    lambda: gemma_lib.Transformer(model_config, rngs=nnx.Rngs(params=0))
-#  )
-#  abs_state = nnx.state(abs_gemma)
-#  abs_state = jax.tree.map(
-#    lambda a, s: jax.ShapeDtypeStruct(a.shape, jnp.bfloat16, sharding=s),
-#    abs_state,
-#    nnx.get_named_sharding(abs_state, mesh),
-#  )
-#  checkpointer = ocp.StandardCheckpointer()
-#  restored_params = checkpointer.restore(ckpt_path, target=abs_state)
-#
-#  graph_def, _ = nnx.split(abs_gemma)
-#  gemma = nnx.merge(graph_def, restored_params)
-#  return gemma, mesh, model_config
-
-# +
-#ref_model, mesh, model_config = get_gemma_ref_model(
-#  ckpt_path=os.path.join(INTERMEDIATE_CKPT_DIR, "state"),
-#  model_config
-#)
-#hbm_usage()    
-# -
-
-def get_lora_model(base_model, mesh, rank=RANK, alpha=ALPHA):
+def get_lora_model_qwix(base_model, mesh, rank=RANK, alpha=ALPHA):
   """
   This apparently makes a separate copy of the model
   rather than using the base_model weights by-reference
@@ -280,14 +233,17 @@ def get_lora_model(base_model, mesh, rank=RANK, alpha=ALPHA):
 
 
 model_rollout = model_nnx
-if True:
-  model_rollout = get_lora_model(model_nnx, mesh=mesh)
+if False:  # The qwix version seems to copy the original weights
+  model_rollout = get_lora_model_qwix(model_nnx, mesh=mesh)
   #nnx.display(lora_policy)  This does appear to have LoRA adapters in it
   hbm_usage()  # Now 3.8 GiB (with 2 1B models loaded)
+if True:
+  
 
+# +
 #del model_nnx
 #gc.collect()
-hbm_usage()
+#hbm_usage()
 
 # +
 # GOT TO HERE...
@@ -297,6 +253,7 @@ hbm_usage()
 
 # +
 def kv_cache_estimate(batch_size, steps_max=(MAX_PROMPT_LENGTH + MAX_GENERATION_STEPS + 32)):
+  # https://notes.kvfrans.com/7-misc/rl-infra.html
   return (
     batch_size * steps_max *  # But actual allocation is not dependent on steps_max
     model_config.num_layers * model_config.num_kv_heads * model_config.head_dim
@@ -354,7 +311,6 @@ batch_arr = [1, 8, 16, 64, 128, 200, ]  # Ok for raw model (failed after)
 batch_arr = [1, 8, 16, 64, 128, ]  # Ok for LoRA model (failed after)
 batch_arr = [16, 32, 60, 64, 68, 100, 124, 128, 132]  # Detail Ok for LoRA model (failed after)
 #batch_arr = [256, ]  # Fails with RESOURCE_EXHAUSTED
-#batch_arr = [128, ]  # 
 res_arr = []
 
 for batch_size in batch_arr:
@@ -364,7 +320,6 @@ for batch_size in batch_arr:
     t0=time.time()
     kv_est = kv_cache_estimate(batch_size)  #  This will be allocated+deallocated - but we need to add...
     # Each new value of steps_max incurs a jit compilation delay... (but they do get cached!)
-    #   Also, it seems the cache size generation gets rejitted longer each time (but remains fixed at high-water?)
     ans_arr = generate_answers( [question_long]*batch_size, sampler_rollout, steps_max=steps_max)
     #  ans_arr[0] = 'Prime number is a positive integer greater than 1 that  ...' (gets truncated)
     elapsed = time.time()-t0
@@ -390,14 +345,11 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 sns.set_style("darkgrid")
+# -
 
-# +
 res_df = pd.DataFrame(res_arr)
-
 res_df['ms_per_token'] = res_df['elapsed']*1000. / (res_df['steps_max']*res_df['batch_size'])
 
-
-# -
 
 def regplot(x="steps_max", y="elapsed", include_origin=True):
   fig, ax = plt.subplots(figsize=(12,4))
@@ -419,6 +371,13 @@ regplot(x="batch_size", y="hbm0")
 
 # +
 #res_df # LoRA model detail
+# +
+#checkpointer = ocp.StandardCheckpointer()
+#_, state = nnx.split(gemma)
+#checkpointer.save(os.path.join(INTERMEDIATE_CKPT_DIR, "state"), state)
+#checkpointer.wait_until_finished()
+#show_hbm_usage()    
 # -
+
 
 
