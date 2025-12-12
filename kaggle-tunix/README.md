@@ -86,7 +86,7 @@ gcloud compute tpus tpu-vm accelerator-types describe ${TPU_TYPE} --zone=${TPU_Z
 ### Create the TPU
 
 ```bash
-TPU_SECRETS="foo=barbar,JUPYTER_TOKEN=security-via-GCP-auth"
+TPU_SECRETS="foo=barbar,JUPYTER_TOKEN=''" # security-via-GCP-auth
 gcloud compute tpus tpu-vm create ${TPU_NAME} \
   --zone=${TPU_ZONE} \
   --accelerator-type=${TPU_TYPE} \

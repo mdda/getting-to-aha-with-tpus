@@ -66,7 +66,8 @@ res_df = pd.DataFrame(
   # steps=1024, lots of batch_sizes
   #load_and_annotate('docs/bs-to-200_steps1024.pkl', dict(lora=False)), 
   #load_and_annotate('docs/bs-to-128_steps1024_lora.pkl', dict(lora=True, qwix=True)), 
-  load_and_annotate('docs/bs-detail-128_steps1024_lora.pkl', dict(lora=True, qwix=True)), 
+  #load_and_annotate('docs/bs-detail-128_steps1024_lora.pkl', dict(lora=True, qwix=True)), 
+  load_and_annotate('docs/bs-more-detail-128_steps1024_lora.pkl', dict(lora=True, qwix_fixed=True)), 
 )
 
 regplot(res_df, x="batch_size", y="ms_per_token")
@@ -87,7 +88,8 @@ lora1_df = pd.DataFrame(
   load_and_annotate('docs/bs-to-128_steps1024_lora.pkl', dict(lora=True, qwix=True)), 
 )
 lora2_df = pd.DataFrame(
-  load_and_annotate('docs/bs-detail-128_steps1024_lora.pkl', dict(lora=True, qwix=True)), 
+#  load_and_annotate('docs/bs-detail-128_steps1024_lora.pkl', dict(lora=True, qwix=True)), 
+  load_and_annotate('docs/bs-more-detail-128_steps1024_lora.pkl', dict(lora=True, qwix_fixed=True)), 
 )
 combo_df =  pd.concat([basic_df, lora1_df, lora2_df])
 
