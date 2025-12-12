@@ -16,7 +16,7 @@
 
 # +
 import os, time
-import gc  # Memory clean-up
+import asyncio, gc  # Avoid some jupyter async issues; Memory clean-up
 
 import jax
 import jax.numpy as jnp
@@ -80,6 +80,8 @@ def hbm_usage(display=True):
     if display:
       print(f"Using {fmt_size(used)} / {fmt_size(limit)} ({used/limit:%}) on {d}")
     mem_arr.append(used)
+  if display:
+    print(f"{len(jax.live_arrays())} arrays are live in HBM")
   return mem_arr
       
 hbm_usage()    
@@ -175,17 +177,22 @@ if NUM_TPUS == 8:
   #MESH_COUNTS = (8, 1) # in https://www.kaggle.com/code/marculera/supervised-fine-tuning-full
 mesh = jax.make_mesh(MESH_COUNTS, ("fsdp", "tp"), axis_types=(jax.sharding.AxisType.Auto,)*2) # or AxisType.Explicit
 mesh
-# -
 
+# +
 model_nnx = params_lib.create_model_from_checkpoint(
   os.path.join(kaggle_ckpt_path, "gemma3-1b-it"),
   model_config, 
   mesh = mesh,
 )
+
+# Sync before going to next cell (attempt)
+# Iterate over every single array and force the host to wait until the device has finished writing it.
+#jax.tree.map(lambda x: x.block_until_ready(), nnx.state(model_nnx))
+await asyncio.sleep(0)  # This is required to ensure that we can move on to next cell cleanly
+#gc.collect()
+
 hbm_usage() # [2,000,511,488]
 
-# +
-#nnx.display(model_nnx)
 
 # +
 # Explicitly delete the model - this does work!
@@ -193,12 +200,9 @@ hbm_usage() # [2,000,511,488]
 #del model_rollout
 #del sampler_rollout
 
-gc.collect()   #  This is apparently required to get rid of TPU memory allocated to 'del' variables
-hbm_usage()    # 1.9Gb -> 1.7Mb
+#gc.collect()   #  This is apparently required to get rid of TPU memory allocated to 'del' variables
+#hbm_usage() # 1.9Gb -> 1.7Mb
 # -
-
-
-
 # ### Model Loading and LoRA Application
 # These two functions work together to load a base model from a checkpoint and apply a LoRA (Low-Rank Adaptation) layer to it.
 #
@@ -232,22 +236,27 @@ def get_lora_model_qwix(base_model, mesh, rank=RANK, alpha=ALPHA):
   return lora_model
 
 
-model_rollout = model_nnx
-if False:  # The qwix version seems to copy the original weights
-  model_rollout = get_lora_model_qwix(model_nnx, mesh=mesh)
-  #nnx.display(lora_policy)  This does appear to have LoRA adapters in it
-  hbm_usage()  # Now 3.8 GiB (with 2 1B models loaded)
-if True:
-  
+# model_nnx exists
+hbm_usage(), len(jax.live_arrays())
+
+
+if True:  # The qwix version seems to copy the original weights
+  model_lora = get_lora_model_qwix(model_nnx, mesh=mesh)
+  #nnx.display(model_lora)  This does appear to have LoRA adapters in it
+hbm_usage() # Now 3.8 GiB (with 2 1B models loaded)
+
 
 # +
+#hbm_usage() # Now 3.8 GiB (with 2 1B models loaded)
 #del model_nnx
 #gc.collect()
 #hbm_usage()
-
-# +
-# GOT TO HERE...
 # -
+
+del model_nnx
+hbm_usage() # Now 2.1 GiB (with 1x 1B+LoRA model loaded)
+
+model_rollout = model_lora
 
 
 
@@ -297,7 +306,7 @@ def generate_answers(question_arr, sampler, steps_max=MAX_GENERATION_STEPS,
   return text_arr
 
 
-# Building the sampler causes a recompilation ...
+# This is quick...
 t0=time.time()
 sampler_rollout = build_sampler(model_rollout, tokenizer, model_config)
 print(f"{(time.time()-t0):.2f} seconds to build sampler")
@@ -307,9 +316,10 @@ question_long = "List all the prime numbers less than 1 million"
 batch_size, steps_max = 1, 1024  # Defaults
 
 #steps_arr = [5, 64,128,150,200,250,256, 512, 800, 1024]
-batch_arr = [1, 8, 16, 64, 128, 200, ]  # Ok for raw model (failed after)
-batch_arr = [1, 8, 16, 64, 128, ]  # Ok for LoRA model (failed after)
-batch_arr = [16, 32, 60, 64, 68, 100, 124, 128, 132]  # Detail Ok for LoRA model (failed after)
+#batch_arr = [1, 8, 16, 64, 128, 200, ]  # Ok for raw model (failed after)
+#batch_arr = [1, 8, 16, 64, 128, ]  # Ok for LoRA model (failed after)
+#batch_arr = [16, 32, 60, 64, 68, 100, 124, 128, 132]  # Detail Ok for LoRA model (failed after)
+batch_arr = [32, 38, 56,60,64,68,72, 96,100,104, 120,124,128,132,136]  # Detail Ok for LoRA model (failed after)
 #batch_arr = [256, ]  # Fails with RESOURCE_EXHAUSTED
 res_arr = []
 
@@ -336,7 +346,7 @@ hbm_usage()
 
 import pickle
 #with open('steps-vary_bs1.pkl', 'wb') as f:
-with open('bs-detail-128_steps1024_lora.pkl', 'wb') as f:
+with open('bs-more-detail-128_steps1024_lora.pkl', 'wb') as f:
   pickle.dump(res_arr, f)
 
 # +
