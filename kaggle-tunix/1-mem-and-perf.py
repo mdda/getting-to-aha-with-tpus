@@ -374,20 +374,82 @@ regplot(x="batch_size", y="ms_per_token")
 regplot(x="batch_size", y="hbm0")
 
 # +
-#res_df # regular model
-
-# +
-#res_df # LoRA model
-
-# +
-#res_df # LoRA model detail
-# +
 #checkpointer = ocp.StandardCheckpointer()
 #_, state = nnx.split(gemma)
 #checkpointer.save(os.path.join(INTERMEDIATE_CKPT_DIR, "state"), state)
 #checkpointer.wait_until_finished()
 #show_hbm_usage()    
 # -
+# ## Speed check on getting logits from model
+
+model_logits = model_lora
+
+# +
+# Model input function
+from tunix.sft import utils
+
+def generate_fake_inputs(batch_size, question, blah="just some random tokens that'll get repeated", 
+                        steps_max=MAX_GENERATION_STEPS):
+  tok_question = tokenizer.tokenize( 
+    TEMPLATE.format(system_prompt=SYSTEM_PROMPT, question=question), 
+    add_eos=False)  # Returns a np.array of np.int32
+  tok_answer = tokenizer.tokenize( blah, add_eos=False)
+  n_answers = (steps_max-tok_question.shape[0])//tok_answer.shape[0] +1 # Round up
+  tok_full = np.concat([tok_question, np.repeat(tok_answer, n_answers)], axis=0), 
+  tok_batch = np.tile(tok_full, (batch_size, 1))
+  return jnp.asarray( tok_batch )  # (batch_size, seq_len)
+
+# CHECK : is there a BOS token at the front?
+#jnp.array([self.vocab.bos_id()] + input_ids, dtype=jnp.int32)
 
 
+# +
+batch_size, steps_max = 8, 1024
+prompt = generate_fake_inputs(batch_size, question_sample, steps_max=256)  # [B, T]
+
+pad_mask = training_input.input_tokens != tokenizer.pad_id()  
+positions = transformer_lib.build_positions_from_mask(pad_mask)
+attn_mask = transformer_lib.make_causal_attn_mask(pad_mask)
+
+prompt.shape, positions.shape, attn_mask.shape
+# -
+
+logits, _ = model_logits(prompt, positions, cache=None, attention_mask=attn_mask)
+logits.shape, logits # Seems to be a full list of logits for the input
+
+for tok_logits in logits[0]: # Look at each token
+  token_next = jnp.argmax(tok_logits)  # This is greedy
+  #print(f"{tok_logits.shape=} {token_next:6d} -> {tokenizer.id_to_piece(int(token_next))}")  
+  print(f"{tok_logits.shape=} {token_next:6d} -> {tokenizer.id_to_piece(int(token_next))}")  
+  # ?DecodeIds
+
+# +
+# Actual speed test
+
+batch_size, steps_max = 1, 1024  # Defaults
+steps_arr = [1024, 1024*2]
+batch_arr = [32, 38, 56,60,64,68,72, 96,100,104, 120,124,128,132,136]  # Detail Ok for LoRA model (failed after)
+
+res_arr = []
+
+#for batch_size in batch_arr:
+for steps_max in steps_arr:
+  print(f"{steps_max=} {batch_size=}")
+
+  prompt = generate_fake_inputs(batch_size, question_sample, steps_max=256)  # [B, T]
+
+  pad_mask = training_input.input_tokens != tokenizer.pad_id()  
+  positions = transformer_lib.build_positions_from_mask(pad_mask)
+  attn_mask = transformer_lib.make_causal_attn_mask(pad_mask)
+  
+  for trial in [0,1,2]:  # trial==0 may include jit delays : Can throw that result away
+    t0=time.time()
+    kv_est = kv_cache_estimate(batch_size, steps_max)  
+    logits, _ = model_logits(prompt, positions, cache=None, attention_mask=attn_mask)
+    elapsed = time.time()-t0
+    hbm = [ m+kv_est*0 for m in hbm_usage(display=False)]
+    print(f"  {trial=}, {batch_size=:3d}, {elapsed:8.3f}sec, {hbm=}")  
+    if trial>0:
+      res_arr.append( dict(trial=trial, batch_size=batch_size, steps_max=steps_max, 
+                           elapsed=elapsed, hbm0=hbm[0],) )
 
