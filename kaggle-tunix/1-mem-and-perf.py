@@ -18,12 +18,13 @@
 import os, time
 import asyncio, gc  # Avoid some jupyter async issues; Memory clean-up
 
+import numpy as np  # On CPU : used for tokeniser stuff
+
 import jax
 import jax.numpy as jnp
 
 NUM_TPUS = len(jax.devices())
 
-#INTERMEDIATE_CKPT_DIR = "~/content/intermediate_ckpt/"
 CKPT_DIR = "~/content/ckpts/"
 
 # +
@@ -246,13 +247,6 @@ if True:  # The qwix version seems to copy the original weights
 hbm_usage() # Now 3.8 GiB (with 2 1B models loaded)
 
 
-# +
-#hbm_usage() # Now 3.8 GiB (with 2 1B models loaded)
-#del model_nnx
-#gc.collect()
-#hbm_usage()
-# -
-
 del model_nnx
 hbm_usage() # Now 2.1 GiB (with 1x 1B+LoRA model loaded)
 
@@ -385,9 +379,9 @@ regplot(x="batch_size", y="hbm0")
 model_logits = model_lora
 
 # +
-# Model input function
-from tunix.sft import utils
+batch_size, steps_max = 8, 1024
 
+# Model input function
 def generate_fake_inputs(batch_size, question, blah="just some random tokens that'll get repeated", 
                         steps_max=MAX_GENERATION_STEPS):
   tok_question = tokenizer.tokenize( 
@@ -395,61 +389,74 @@ def generate_fake_inputs(batch_size, question, blah="just some random tokens tha
     add_eos=False)  # Returns a np.array of np.int32
   tok_answer = tokenizer.tokenize( blah, add_eos=False)
   n_answers = (steps_max-tok_question.shape[0])//tok_answer.shape[0] +1 # Round up
-  tok_full = np.concat([tok_question, np.repeat(tok_answer, n_answers)], axis=0), 
+  tok_full = np.concat([tok_question, np.tile(tok_answer, n_answers)], axis=0) 
+  tok_full = tok_full[:steps_max]  #  Truncate to be exactly steps_max long
   tok_batch = np.tile(tok_full, (batch_size, 1))
   return jnp.asarray( tok_batch )  # (batch_size, seq_len)
 
-# CHECK : is there a BOS token at the front?
-#jnp.array([self.vocab.bos_id()] + input_ids, dtype=jnp.int32)
-
 
 # +
-batch_size, steps_max = 8, 1024
-prompt = generate_fake_inputs(batch_size, question_sample, steps_max=256)  # [B, T]
+import tunix.sft
 
-pad_mask = training_input.input_tokens != tokenizer.pad_id()  
-positions = transformer_lib.build_positions_from_mask(pad_mask)
-attn_mask = transformer_lib.make_causal_attn_mask(pad_mask)
+input_fake = generate_fake_inputs(batch_size, question_sample, steps_max=256)  # [B, T]
 
-prompt.shape, positions.shape, attn_mask.shape
+pad_mask = input_fake != tokenizer.pad_id()  
+positions = tunix.sft.utils.build_positions_from_mask(pad_mask)
+attn_mask = tunix.sft.utils.make_causal_attn_mask(pad_mask)
+
+input_fake.shape, positions.shape, attn_mask.shape
+# ((8, 256), (8, 256), (8, 256, 256))
 # -
 
-logits, _ = model_logits(prompt, positions, cache=None, attention_mask=attn_mask)
-logits.shape, logits # Seems to be a full list of logits for the input
+# CHECK : is there a BOS token at the front?  == YES (actual 2 of them...)
+#jnp.array([self.vocab.bos_id()] + input_ids, dtype=jnp.int32)
+input_fake[0][:4], tokenizer.bos_id()
 
-for tok_logits in logits[0]: # Look at each token
-  token_next = jnp.argmax(tok_logits)  # This is greedy
-  #print(f"{tok_logits.shape=} {token_next:6d} -> {tokenizer.id_to_piece(int(token_next))}")  
-  print(f"{tok_logits.shape=} {token_next:6d} -> {tokenizer.id_to_piece(int(token_next))}")  
-  # ?DecodeIds
+logits, _ = model_logits(input_fake, positions, cache=None, attention_mask=attn_mask)
+logits.shape, logits.min(), logits.mean(), logits.max()  # Seems to be a full list of logits for the input
+
+for idx, tok_logits in enumerate(logits[0]): # Look at each token
+  token_idx = tokenizer.decode(int(input_fake[0][idx])).strip()
+  pred_greedy = jnp.argmax(tok_logits)  # This is greedy
+  token_next = tokenizer.decode(int(pred_greedy)).strip()
+  #print(f"{tok_logits.shape=} {token_idx:20s} {pred_greedy:6d} -> {token_next:20s}")  
 
 # +
 # Actual speed test
 
 batch_size, steps_max = 1, 1024  # Defaults
 steps_arr = [1024, 1024*2]
-batch_arr = [32, 38, 56,60,64,68,72, 96,100,104, 120,124,128,132,136]  # Detail Ok for LoRA model (failed after)
+#batch_arr = [32, 38, 56,60,64,68,72, 96,100,104, 120,124,128,132,136]  # Detail Ok for LoRA model (failed after)
+batch_arr = [1,2,4,6,8,10,12]  # 
 
 res_arr = []
 
-#for batch_size in batch_arr:
-for steps_max in steps_arr:
+for batch_size in batch_arr:
+#for steps_max in steps_arr:
   print(f"{steps_max=} {batch_size=}")
 
-  prompt = generate_fake_inputs(batch_size, question_sample, steps_max=256)  # [B, T]
+  input_fake = generate_fake_inputs(batch_size, question_sample, steps_max=steps_max)  # [B, T]
 
-  pad_mask = training_input.input_tokens != tokenizer.pad_id()  
-  positions = transformer_lib.build_positions_from_mask(pad_mask)
-  attn_mask = transformer_lib.make_causal_attn_mask(pad_mask)
-  
+  pad_mask = input_fake != tokenizer.pad_id()  
+  positions = tunix.sft.utils.build_positions_from_mask(pad_mask)
+  attn_mask = tunix.sft.utils.make_causal_attn_mask(pad_mask)    
+   
   for trial in [0,1,2]:  # trial==0 may include jit delays : Can throw that result away
     t0=time.time()
     kv_est = kv_cache_estimate(batch_size, steps_max)  
-    logits, _ = model_logits(prompt, positions, cache=None, attention_mask=attn_mask)
+    logits, _ = model_logits(input_fake, positions, cache=None, attention_mask=attn_mask)
     elapsed = time.time()-t0
     hbm = [ m+kv_est*0 for m in hbm_usage(display=False)]
     print(f"  {trial=}, {batch_size=:3d}, {elapsed:8.3f}sec, {hbm=}")  
     if trial>0:
       res_arr.append( dict(trial=trial, batch_size=batch_size, steps_max=steps_max, 
                            elapsed=elapsed, hbm0=hbm[0],) )
+
+# -
+
+import pickle
+#with open('steps-vary_bs1.pkl', 'wb') as f:
+with open('logits_bs_steps1024_lora.pkl', 'wb') as f:
+  pickle.dump(res_arr, f)
+
 
