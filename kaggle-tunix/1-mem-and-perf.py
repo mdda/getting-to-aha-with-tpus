@@ -445,6 +445,7 @@ for batch_size in batch_arr:
     kv_est = kv_cache_estimate(batch_size, steps_max)  
     logits, _ = model_logits(input_fake, positions, cache=None, 
                              attention_mask=attn_mask, output_hidden_states=False)
+    logits.block_until_ready()  # Maybe?
     elapsed = time.time()-t0
     hbm = [ m+kv_est*0 for m in hbm_usage(display=False)]
     print(f"  {trial=}, {batch_size=:3d}, {elapsed:8.3f}sec, {hbm=}")  
@@ -456,21 +457,23 @@ for batch_size in batch_arr:
 
 import pickle
 #with open('steps-vary_bs1.pkl', 'wb') as f:
-with open('logits_bs_steps1024_lora.pkl', 'wb') as f:
+#with open('logits_bs_steps1024_lora.pkl', 'wb') as f:
+with open('scanlogits_bs_steps1024_lora.pkl', 'wb') as f:
   pickle.dump(res_arr, f)
-
 
 # ## Try a memory-efficient parallel forward pass
 
 # +
+from functools import partial
+
 #@nnx.jit()
-#@jax.jit
-def forward_to_logits_no_cache(self_model, tokens, positions, attention_mask):
+@jax.jit
+def forward_to_prelogits_no_cache(self_model, tokens, positions, attention_mask):
   new_cache = None
   # Taken from tunix gemma3 code 
   #  https://github.com/google/tunix/blob/main/tunix/models/gemma3/model.py#L918-L938
   x = self_model.embedder.encode(tokens)
-  for i, layer in enumerate(model.layers):
+  for i, layer in enumerate(self_model.layers):
     layer_name = f'layer_{i}'
     #layer_cache = cache[layer_name] if cache else None
     with jax.named_scope(layer_name):
@@ -483,13 +486,13 @@ def forward_to_logits_no_cache(self_model, tokens, positions, attention_mask):
     #if cache is not None:
     #  new_cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
 
-  return model.final_norm(x)  # 'x' is the pre-logits stage...
+  return self_model.final_norm(x)  # 'x' is the pre-logits stage...
   #if output_hidden_states:
-  #  self.sow(nnx.Intermediate, 'all_hidden_states', x)
-  #logits = self.embedder.decode(x)
+  #  self_model.sow(nnx.Intermediate, 'all_hidden_states', x)
+  #logits = self_model.embedder.decode(x)
 
-@jax.jit
-def compute_chunked_top_k(hidden_states, embedding_matrix_T, k=128):
+@partial(jax.jit, static_argnames=['k'])
+def compute_chunked_top_k(hidden_states, embedding_matrix, k=128):
   """
   Computes Top-K logits without ever materializing the full [Batch, Seq, Vocab] tensor.
   
@@ -513,7 +516,7 @@ def compute_chunked_top_k(hidden_states, embedding_matrix_T, k=128):
     # Compute logits ONLY for this timestep
     # [Batch, Hidden] @ [Hidden, Vocab] -> [Batch, Vocab]
     # This is 1024x smaller than the full sequence matrix
-    logits_t = jnp.matmul(x_t, embedding_matrix_T) 
+    logits_t = jnp.matmul(x_t, embedding_matrix.T) 
     
     # Extract Top-K immediately
     vals_t, inds_t = jax.lax.top_k(logits_t, k)
@@ -529,7 +532,7 @@ def compute_chunked_top_k(hidden_states, embedding_matrix_T, k=128):
   top_inds = jnp.swapaxes(top_inds_T, 0, 1)
   
   return top_vals, top_inds
-  
+
 
 # -
 
@@ -542,7 +545,8 @@ def compute_chunked_top_k(hidden_states, embedding_matrix_T, k=128):
 
 batch_size, steps_max = 1, 1024  # Defaults
 steps_arr = [1024, 1024*2]
-batch_arr = [1,2,4,6,8,10,]  #  12 is an OOM
+#batch_arr = [1,2,4,6,8,10,]  #  All work!
+batch_arr = [8,16,32, 38, 56,60,64,68,72, 96,100,104, 120,124,128,132,136]  # Detail Ok for LoRA model (failed after)
 
 res_arr = []
 
@@ -564,7 +568,8 @@ for batch_size in batch_arr:
     #logits, _ = model_logits(input_fake, positions, cache=None, 
     #                         attention_mask=attn_mask, output_hidden_states=False)
     prelogits = forward_to_prelogits_no_cache(model_logits, input_fake, positions, attn_mask)
-    top_vals, top_inds = compute_chunked_top_k(prelogits, model_logits.embedder.input_embedding.value, k=128)
+    top_vals, top_inds = compute_chunked_top_k(prelogits, model_logits.embedder.input_embedding, k=128)
+    top_vals.block_until_ready()
     
     elapsed = time.time()-t0
     hbm = [ m+kv_est*0 for m in hbm_usage(display=False)]
@@ -574,5 +579,9 @@ for batch_size in batch_arr:
                            elapsed=elapsed, hbm0=hbm[0],) )
 
 # -
+input_fake.shape
+
+
+nnx.display(prelogits)
 
 
