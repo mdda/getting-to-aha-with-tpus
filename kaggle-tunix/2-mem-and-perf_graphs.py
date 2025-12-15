@@ -41,6 +41,7 @@ def load_and_annotate(filename, annotations=dict()):
         d[k]=v
       if d.get('lora', False) and d.get('qwix', False):  
         d['hbm0'] -= 2000512000   # qwix version has two models loaded
+      d['hbm0'] /= 1000*1000*1000 # i.e. in decimal GB
       d['ms_per_token'] = d['elapsed']*1000. / (d['steps_max']*d['batch_size'])
   return data
 
@@ -67,8 +68,11 @@ res_df = pd.DataFrame(
   #load_and_annotate('docs/bs-to-200_steps1024.pkl', dict(lora=False)), 
   #load_and_annotate('docs/bs-to-128_steps1024_lora.pkl', dict(lora=True, qwix=True)), 
   #load_and_annotate('docs/bs-detail-128_steps1024_lora.pkl', dict(lora=True, qwix=True)), 
-  load_and_annotate('docs/bs-more-detail-128_steps1024_lora.pkl', dict(lora=True, qwix_fixed=True)), 
+  #load_and_annotate('docs/bs-more-detail-128_steps1024_lora.pkl', dict(lora=True, qwix_fixed=True)), 
+  load_and_annotate('docs/logits_bs_steps1024_lora.pkl', dict(lora=True, qwix_fixed=True)), 
 )
+
+regplot(res_df, x="batch_size", y="elapsed")
 
 regplot(res_df, x="batch_size", y="ms_per_token")
 

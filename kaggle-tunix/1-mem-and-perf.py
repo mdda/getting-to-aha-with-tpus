@@ -426,8 +426,7 @@ for idx, tok_logits in enumerate(logits[0]): # Look at each token
 
 batch_size, steps_max = 1, 1024  # Defaults
 steps_arr = [1024, 1024*2]
-#batch_arr = [32, 38, 56,60,64,68,72, 96,100,104, 120,124,128,132,136]  # Detail Ok for LoRA model (failed after)
-batch_arr = [1,2,4,6,8,10,12]  # 
+batch_arr = [1,2,4,6,8,10,]  #  12 is an OOM
 
 res_arr = []
 
@@ -444,7 +443,8 @@ for batch_size in batch_arr:
   for trial in [0,1,2]:  # trial==0 may include jit delays : Can throw that result away
     t0=time.time()
     kv_est = kv_cache_estimate(batch_size, steps_max)  
-    logits, _ = model_logits(input_fake, positions, cache=None, attention_mask=attn_mask)
+    logits, _ = model_logits(input_fake, positions, cache=None, 
+                             attention_mask=attn_mask, output_hidden_states=False)
     elapsed = time.time()-t0
     hbm = [ m+kv_est*0 for m in hbm_usage(display=False)]
     print(f"  {trial=}, {batch_size=:3d}, {elapsed:8.3f}sec, {hbm=}")  
@@ -458,5 +458,121 @@ import pickle
 #with open('steps-vary_bs1.pkl', 'wb') as f:
 with open('logits_bs_steps1024_lora.pkl', 'wb') as f:
   pickle.dump(res_arr, f)
+
+
+# ## Try a memory-efficient parallel forward pass
+
+# +
+#@nnx.jit()
+#@jax.jit
+def forward_to_logits_no_cache(self_model, tokens, positions, attention_mask):
+  new_cache = None
+  # Taken from tunix gemma3 code 
+  #  https://github.com/google/tunix/blob/main/tunix/models/gemma3/model.py#L918-L938
+  x = self_model.embedder.encode(tokens)
+  for i, layer in enumerate(model.layers):
+    layer_name = f'layer_{i}'
+    #layer_cache = cache[layer_name] if cache else None
+    with jax.named_scope(layer_name):
+      layer_cache_discarded, x = layer(
+          x,
+          positions,
+          None, #layer_cache,
+          attention_mask,
+      )
+    #if cache is not None:
+    #  new_cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
+
+  return model.final_norm(x)  # 'x' is the pre-logits stage...
+  #if output_hidden_states:
+  #  self.sow(nnx.Intermediate, 'all_hidden_states', x)
+  #logits = self.embedder.decode(x)
+
+@jax.jit
+def compute_chunked_top_k(hidden_states, embedding_matrix_T, k=128):
+  """
+  Computes Top-K logits without ever materializing the full [Batch, Seq, Vocab] tensor.
+  
+  Args:
+      hidden_states: [Batch, Seq, Hidden_Dim] (Output from Teacher Transformer)
+      embedding_matrix: [Vocab, Hidden_Dim] (The output head weights)
+      k: int
+      
+  Returns:
+      top_vals: [Batch, Seq, K]
+      top_inds: [Batch, Seq, K]
+  """
+    
+  # 1. We scan over the Sequence dimension (axis 1).
+  # hidden_states needs to be transposed to [Seq, Batch, Hidden_Dim] for easier scanning
+  hidden_states_T = jnp.swapaxes(hidden_states, 0, 1)
+
+  def scan_step(carry, x_t):
+    # x_t shape: [Batch, Hidden_Dim] (This is the hidden state for 1 timestep)
+    
+    # Compute logits ONLY for this timestep
+    # [Batch, Hidden] @ [Hidden, Vocab] -> [Batch, Vocab]
+    # This is 1024x smaller than the full sequence matrix
+    logits_t = jnp.matmul(x_t, embedding_matrix_T) 
+    
+    # Extract Top-K immediately
+    vals_t, inds_t = jax.lax.top_k(logits_t, k)
+    
+    # We don't need to carry anything, so return None
+    return None, (vals_t, inds_t)
+
+  # 2. Run the scan loop
+  _, (top_vals_T, top_inds_T) = jax.lax.scan(scan_step, None, hidden_states_T)
+  
+  # 3. Swap axes back to [Batch, Seq, K]
+  top_vals = jnp.swapaxes(top_vals_T, 0, 1)
+  top_inds = jnp.swapaxes(top_inds_T, 0, 1)
+  
+  return top_vals, top_inds
+  
+
+# -
+
+
+
+
+
+# +
+# Actual speed test
+
+batch_size, steps_max = 1, 1024  # Defaults
+steps_arr = [1024, 1024*2]
+batch_arr = [1,2,4,6,8,10,]  #  12 is an OOM
+
+res_arr = []
+
+for batch_size in batch_arr:
+#for steps_max in steps_arr:
+  print(f"{steps_max=} {batch_size=}")
+
+  input_fake = generate_fake_inputs(batch_size, question_sample, steps_max=steps_max)  # [B, T]
+
+  pad_mask = input_fake != tokenizer.pad_id()  
+  positions = tunix.sft.utils.build_positions_from_mask(pad_mask)
+  attn_mask = tunix.sft.utils.make_causal_attn_mask(pad_mask)    
+   
+  for trial in [0,1,2]:  # trial==0 may include jit delays : Can throw that result away
+    t0=time.time()
+    kv_est=0
+    #kv_est = kv_cache_estimate(batch_size, steps_max)  
+
+    #logits, _ = model_logits(input_fake, positions, cache=None, 
+    #                         attention_mask=attn_mask, output_hidden_states=False)
+    prelogits = forward_to_prelogits_no_cache(model_logits, input_fake, positions, attn_mask)
+    top_vals, top_inds = compute_chunked_top_k(prelogits, model_logits.embedder.input_embedding.value, k=128)
+    
+    elapsed = time.time()-t0
+    hbm = [ m+kv_est*0 for m in hbm_usage(display=False)]
+    print(f"  {trial=}, {batch_size=:3d}, {elapsed:8.3f}sec, {hbm=}")  
+    if trial>0:
+      res_arr.append( dict(trial=trial, batch_size=batch_size, steps_max=steps_max, 
+                           elapsed=elapsed, hbm0=hbm[0],) )
+
+# -
 
 
