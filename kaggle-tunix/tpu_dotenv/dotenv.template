@@ -1,5 +1,6 @@
 # Need a Kaggle username...
 KAGGLE_USERNAME="YOUR_KAGGLE_USERNAME"
+
 # This is from "Legacy API Credentials"
 #   NB: this isn't the same as the KAGGLE_API_KEY thing
 KAGGLE_KEY="YOUR_KAGGLE_API_KEY"

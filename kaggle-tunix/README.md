@@ -4,6 +4,8 @@ Documenting the process of getting a 'useable' GCP `TPUv5e-1` (or `-8`) running 
 which is important, since the suggested *modus-operandi* seems to be to have 
 these instances being 'stateless' (i.e. attaching a pre-configured disk doesn't seem to be step #1 in the instructions).
 
+NB: Google Cloud credits are provided for this project.  #AISprint
+
 
 ## On local machine
 
