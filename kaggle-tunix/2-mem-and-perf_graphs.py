@@ -30,6 +30,7 @@ def regplot(df, x="steps_max", y="elapsed", include_origin=True):
   if include_origin:
     ax.set(xlim=(0, None), ylim=(0, None))  # Choose defaults for max
   plt.show()
+  return fig
 
 
 import pickle
@@ -54,9 +55,9 @@ res_df = pd.DataFrame(
   # different numbers of steps, batch_size=1
   load_and_annotate('docs/steps-vary_bs1.pkl'), 
 )
-regplot(res_df, y="elapsed")  # When steps varied
+fig=regplot(res_df, y="elapsed")  # When steps varied
 
-regplot(res_df, x="steps_max", y="hbm0")
+fig=regplot(res_df, x="steps_max", y="hbm0")
 
 # ### Look at trends for specific steps across batch_size
 #
@@ -69,14 +70,21 @@ res_df = pd.DataFrame(
   #load_and_annotate('docs/bs-to-128_steps1024_lora.pkl', dict(lora=True, qwix=True)), 
   #load_and_annotate('docs/bs-detail-128_steps1024_lora.pkl', dict(lora=True, qwix=True)), 
   #load_and_annotate('docs/bs-more-detail-128_steps1024_lora.pkl', dict(lora=True, qwix_fixed=True)), 
-  load_and_annotate('docs/logits_bs_steps1024_lora.pkl', dict(lora=True, qwix_fixed=True)), 
+
+  # This is parallel with materialised logits
+  load_and_annotate('docs/logits_bs_steps1024_lora.pkl', dict(lora=True, qwix_fixed=True)),   
 )
 
-regplot(res_df, x="batch_size", y="elapsed")
+fig=regplot(res_df, x="batch_size", y="elapsed")
+#fig.savefig("docs/lora-1024step-rollouts_elapsed_1200x400.png") 
+fig.savefig("docs/lora-1024step-parallel_elapsed_1200x400.png") 
 
-regplot(res_df, x="batch_size", y="ms_per_token")
+fig=regplot(res_df, x="batch_size", y="ms_per_token")
+#fig.savefig("docs/lora-1024step-rollouts_pertoken_1200x400.png") 
 
-regplot(res_df, x="batch_size", y="hbm0")
+fig=regplot(res_df, x="batch_size", y="hbm0")
+#fig.savefig("docs/lora-1024step-rollouts_hbm-usage_1200x400.png") 
+#fig.savefig("docs/lora-1024step-parallel_hbm-usage_1200x400.png") 
 
 # ### Now do comparison of basic vs LoRA speeds
 #
@@ -114,8 +122,20 @@ sns.regplot(data=combo_df[(combo_df['batch_size']>bs_min) & (combo_df['batch_siz
            line_kws={'label': 'LoRA'})
 ax.legend(loc="best")
 plt.show()
+
+#fig.savefig("docs/lora-vs-regular_1200x400.png") 
 # -
+# ## Look at non-materialised logit 
+
+res_df = pd.DataFrame(
+ load_and_annotate('docs/scanlogits_bs_steps1024_lora.pkl', dict(lora=True, qwix_fixed=True)), 
+)
 
 
+fig=regplot(res_df, x="batch_size", y="ms_per_token")
+#fig.savefig("docs/lora-1024step-parallel_non-materialised_pertoken_1200x400.png") 
+
+fig=regplot(res_df, x="batch_size", y="hbm0")
+#fig.savefig("docs/lora-1024step-parallel_non-materialised_hbm-usage_1200x400.png") 
 
 
